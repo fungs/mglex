@@ -24,7 +24,7 @@ def get_priors(quantities, responsibilities):
 
 def e_step(models, priors, data):
     assert_probarray(priors)
-    loglike = models[0].log_likelihood(data[0])
+    loglike = models[0].log_likelihood(data[0])  # TODO: switch to UniversalData representation?
     # loglike = models.rescale[0]*models[0].log_likelihood(data[0])
     # impact = [total_likelihood(loglike)]
     for m, d in izip(models[1:], data[1:]):
@@ -49,7 +49,7 @@ def m_step(models, responsibilities, data):
         stderr.write(
             "LOG M: The following clusters are removed: %s\n" % ",".join(map(str, np.where(np.logical_not(priors))[0])))
     # assert all(priors)  # TODO: remove
-    dimchange = any(map(lambda (m, d): m.maximize_likelihood(responsibilities, d, cmask), izip(models, data)))
+    dimchange = any(map(lambda (m, d): m.maximize_likelihood(responsibilities, d, cmask), izip(models, data)))  # TODO: switch to UniversalData representation?
     # stderr.write("LOG M: %i active mixture components\n" % model.components)
     # stderr.write("LOG M: Finished M step\n")
     return models, priors[cmask], dimchange

@@ -90,7 +90,7 @@ class Model:
             # print >>stderr, "some cluster in some sample wasn't observed:", self.params
         self._params_sum = self.params.sum(axis=0)
         self._params_log = np.log(self.params)
-        return False
+        return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):
         loglike = (data.covsums * self._params_log) - (data.sizes.T * self._params_sum)  # - data.facterm  # last term is optional!
@@ -142,7 +142,7 @@ def load_model(input):
     return Model(all_clists)
 
 
-def load_data(input, samples):
+def load_data(input, samples):  # TODO: add load_data from generic with data-specific parse_line function
     store = Data(samples)
     for line in input:
         if not line or line[0] == "#":  # skip empty lines and comments

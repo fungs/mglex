@@ -8,7 +8,7 @@ def submers(seq, l):
 
 
 from itertools import product, repeat
-from comphash import nuc2bin, bin2hash, patterns
+from comphash import nuc2bin, bin2hash, hash2string, patterns, revcomp
 from sys import stdout, exit
 
 # patterns = {
@@ -54,10 +54,14 @@ for k, kmer2hash in enumerate(hashtable):
     for kmer in product(*repeat("acgt", k+1)):
         kmer_bin = list(nuc2bin(kmer))
         kmer_hash = bin2hash(kmer_bin, patterns)
+        kmer_hash_revcomp = bin2hash(revcomp(kmer_bin), patterns)
+        if kmer_hash != bin2hash(revcomp(kmer_bin), patterns):
+            stdout.write("WARNING: hash %s for k=%i, kmer=%s is different from reverse complement hash %s\n" % (hash2string(kmer_hash), k+1, "".join(kmer), hash2string(kmer_hash_revcomp)))
         kmer2hash[kmer] = kmer_hash
-    dim_real = len(set(kmer2hash.values()))
+    values = set(kmer2hash.values())
+    dim_real = len(values)
     dim_theory = 2**(len(patterns[k+1]))
-    stdout.write("Distinct hashes for k=%i: %i\n" % (k+1, dim_real))
+    stdout.write("There are %i distinct hashes for k=%i: %s\n" % (dim_real, k+1, ",".join(map(hash2string, values))))
     if dim_real != dim_theory:
         stdout.write("WARNING: %i dependent patterns for k=%i\n" % (dim_theory-dim_real, k+1))
 

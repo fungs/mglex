@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # load data
     stderr.write("parsing features\n")
     data = UniversalData([composition.Data()])
-    data.load(stdin)
+    load_data(stdin, data)
     single_data = data[0]
 
     # construct inital (hard) responsibilities

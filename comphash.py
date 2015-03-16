@@ -7,6 +7,9 @@ Explore a new way to measure nucleotide composition.
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
 
+from sys import stderr
+
+
 def usage():
     stderr.write("Usage: %s [--format fasta --normalize --cumulative]\n" % argv[0])
 
@@ -46,8 +49,9 @@ togglebits = {
 
 
 def revcomp(binmer):
-    if len(binmer) == 1:
-        yield (0, 0)
+    binmer = list(binmer)
+#    if len(binmer) == 1:
+#        yield (0, 0)
     for c in reversed(binmer):
         yield togglebits[c]
 
@@ -87,16 +91,21 @@ def revcomp(binmer):
 #        ((1, 1), (1, 1), (1, 1), (1, 1), (0, 1)))
 #}
 
-patterns = dict([(1,(((1, 1),),))] + [(k,(((1,1),)*(k-1)+((1,0),), ((1,1),)*(k-1) + ((0,1),))) for k in range(2,6)])
+K = 100
+patterns = dict([(1,(((1, 1),),))] + [(k,(((1,1),)*(k-1)+((1,0),), ((1,1),)*(k-1) + ((0,1),))) for k in range(2,K+1)])
 #patterns = dict([(k,(((1,1),)*(k-1)+((1,0),), ((1,1),)*(k-1) + ((0,1),))) for k in range(1,6)])
 
 
 def bin2hash(binmer, patterns):
+    binmer = list(binmer)
     k = len(binmer)
+    if k == 1:
+        return (xor[binmer[0][0], binmer[0][1]],)
+
     try:
         pats = patterns[k]
     except KeyError:
-        stderr.write("Could not find patterns for k=%i (kmer is %s)" % (k, binmer))
+        stderr.write("Could not find patterns for k=%i (kmer is %s)\n" % (k, binmer))
         exit(1)
     h = [0 for p in pats]  # number of bits
     # print "empty hash", h
@@ -121,6 +130,9 @@ def feature2string(f, norm):
 
 
 featurelist2string = lambda flist, norm: "\t".join([feature2string(f, norm) for f in flist])
+
+
+hash2string = lambda h: "".join(map(str, h))
 
 
 if __name__ == "__main__":

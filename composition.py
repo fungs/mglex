@@ -18,14 +18,14 @@ freq_type = np.uint16
 
 class Data(object):
     def __init__(self):
-        self.names = []
+        # self.names = []
         self._frequencies = []
         self.sizes = None
         self.frequencies = None
 
-    def deposit(self, frequencies):  # TODO: move names to superdata
+    def deposit(self, frequencies):  # TODO: adjust signature with UniversalData
         # self.names.append(name)
-        frequencies = np.array(frequencies.split(","), dtype=np.uint32)  # freqencies must not exceed 4,294,967,295
+        frequencies = np.array(frequencies, dtype=np.uint32)  # freqencies must not exceed 4,294,967,295
         maxtype = np.min_scalar_type(np.max(frequencies))
         row = frequencies.astype(maxtype)  # TODO: support sparse features
         self._frequencies.append(row)
@@ -36,6 +36,7 @@ class Data(object):
         # self.frequencies /= np.float32(tmp)  # TODO: normalization necessary? make smarter operations, calculate earlier
         # self.sizes = tmp.T
         self.sizes = self.frequencies.sum(axis=1).T
+	self.frequencies = self.frequencies / common.prob_type(self.sizes.T)
         return self
 
     @property
@@ -59,7 +60,7 @@ class Model(object):  # TODO: move names to supermodel
         assert len(self.names) == self.variables.shape[1]  # TODO: check dimension param
         dimchange = False
         assert(self.variables.sum(axis=0).all())  # DEBUG: remove
-        self.variables /= self.variables.sum(axis=0)  # proper relative frequencies, TODO: remove if not necessary
+        self.variables = common.prob_type(self.variables / self.variables.sum(axis=0))  # TODO: optimize memory use
         # assert_probmatrix(self.variables.T)
 
         # reduction of model complexity
@@ -75,8 +76,9 @@ class Model(object):  # TODO: move names to supermodel
         self._loglikes = np.log(self.variables[self._fmask])
         return dimchange
 
-
     def log_likelihood(self, data):
+#	print >> stderr, "data dimension: %s, loglike dimension: %s" % (data.frequencies.shape, self._loglikes.shape)
+	assert data.num_features == self._loglikes.shape[0]
         return data.frequencies[:, self._fmask] * self._loglikes #/ data.sizes  # DEBUG: last division term for normalization
         #return data.frequencies * self._loglikes
 
@@ -102,27 +104,26 @@ class Model(object):  # TODO: move names to supermodel
     _short_name = "NB_model"
 
 
-def load_data(inseq, store):  # TODO: move to data class; move type casting to deposit
-    for line in inseq:
-        if not line or line[0] == "#":  # skip empty lines and comments
-            continue
-        seqname, features = line.rstrip().split("\t", 2)[:2]
-        features = features.split(",")
-        store.deposit(seqname, features)
-    return store.prepare()
-
-
-def load_model(inseq):  # TODO: move to model class
-    vectors = []
+def load_model_tuples(inseq):  # TODO: make generic
+    cols = []
     names = []
-    for line in inseq:
-        if not line or line[0] == "#":  # skip empty lines and comments
-            continue
-        modname, features = line.rstrip().split("\t", 2)[:2]
-        vec = np.asarray(map(common.prob_type, features.split(",")))
-        vectors.append(vec)
-        names.append(modname)
-    return Model(np.vstack(vectors), names)
+    try:
+        for rec in inseq:
+            names.append(rec[0])
+            for i, data in enumerate(rec[1:]):
+                vec = np.asarray(data, dtype=np.float64)  # allow for large numbers
+                try:
+                    cols[i].append(vec)
+                except IndexError:
+                    cols.append([vec])
+    except TypeError:
+        stderr.write("Could not parse model definition line\n")
+        exit(1)
+    return map(lambda v: Model(np.vstack(v), names), cols)
+
+
+# TODO: add load_data from generic with data-specific parse_line function
+load_model = lambda i: load_model_tuples(common.parse_lines(i))  # TODO: move to model class?
 
 
 def random_model(component_number, feature_number):

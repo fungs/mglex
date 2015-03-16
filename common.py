@@ -8,40 +8,32 @@ This file contains helper functions and types.
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import numpy as np
+from collections import Iterable
 from numpy.testing import assert_approx_equal
 from operator import itemgetter
-from itertools import izip, count
+from itertools import izip, count, ifilterfalse
 from sys import stderr
 
 # common data types
 prob_type = np.float16
 
 
-class UniversalData(list):
+class UniversalData(list):  # TODO: rename GenericData
     def __init__(self, *args, **kw):
         super(UniversalData, self).__init__(*args, **kw)
-        self.names = []
+        # self.names = []
 
-    def deposit(self, name, features):
-        self.names.append(name)
+    def deposit(self, features):
+        # self.names.append(name)
         for d, f in izip(self, features):
             d.deposit(f)
+
+    def prepare(self):
+        return map(lambda d: d.prepare(), self)  # TODO: return self without conversion to list by map
 
     @property
     def sizes(self):  # transitional
         return self[0].sizes
-
-    def load(self, seq):
-        num = len(self) + 1
-        for line in seq:
-            if not line or line[0] == "#":  # skip empty lines and comments
-                continue
-            fields = line.rstrip().split("\t")[:num]
-            name = fields[0]
-            features = fields[1:num]
-            self.deposit(name, features)
-        for d in self:
-            d.prepare()
 
     @property
     def num_data(self):
@@ -54,7 +46,7 @@ class UniversalData(list):
         return 0
 
 
-class UniversalModel(list):
+class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
     def __init__(self, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
 
@@ -62,12 +54,43 @@ class UniversalModel(list):
     def names(self):
         if len(self) > 1:
             component_names = zip(*map(lambda m: m.names, self))
-            return map(lambda t: ",".join(t), component_names)
+            return map(lambda t: ",".join(uniq(t)), component_names)
         return self[0].names
 
     @property
     def components(self):  # transitional
         return self[0].components
+
+    def log_likelihood(self, data):
+        loglike = self[0].log_likelihood(data[0])
+        for m, d in izip(self[1:], data[1:]):
+            m_loglike = m.log_likelihood(d)
+            loglike += m_loglike
+        return loglike
+
+
+def parse_lines(lines):
+    for line in lines:
+        if not line or line[0] == "#":  # skip empty lines and comments
+            continue
+        fields = line.rstrip().split("\t")
+        fields[1:] = map(lambda s: s.split(","), fields[1:])
+        yield tuple(fields)
+
+
+def load_data_tuples(inseq, store):  # TODO: make dependent on data class
+        names = []
+        for record in inseq:
+            names.append(record[0])
+            features = record[1:]
+            if len(features) > 0 and isinstance(features[0], Iterable) and not isinstance(store, UniversalData):  # hack to make this work for UniversalData and Data
+                store.deposit(*features)
+            else:
+                store.deposit(features)
+        return names, store.prepare()
+
+
+load_data = lambda lines, store: load_data_tuples(parse_lines(lines), store)
 
 
 def assert_probmatrix(mat):
@@ -414,6 +437,27 @@ def plot_clusters_igraph(responsibilities, color_groups):
             colors[i] = c
     l = g.layout_mds(dist=squareform(Y))
     plot(g, layout=l, vertex_color=colors, bbox=(1024, 1024), vertex_size=5)
+
+from itertools import ifilterfalse
+
+
+# c&p from stackexchange
+def uniq(iterable, key=None):
+    "List unique elements, preserving order. Remember all elements ever seen."
+    # unique_everseen('AAAABBBCCDAABBB') --> A B C D
+    # unique_everseen('ABBCcAD', str.lower) --> A B C D
+    seen = set()
+    seen_add = seen.add
+    if key is None:
+        for element in ifilterfalse(seen.__contains__, iterable):
+            seen_add(element)
+            yield element
+    else:
+        for element in iterable:
+            k = key(element)
+            if k not in seen:
+                seen_add(k)
+                yield element
 
 
 if __name__ == "__main__":
