@@ -18,7 +18,7 @@ if __name__ == "__main__":
     #smoothing_factor = 10 # values > 1 make the distribution more spiky
 
     # load model
-    model = common.UniversalModel(composition.load_model(open(argv[1], "r")))
+    model = common.UniversalModel(composition.load_model(open(argv[1], "r"), pseudocount=True))
     
     # load data
     data = common.UniversalData([composition.Data() for m in model])

@@ -48,8 +48,14 @@ class Data(object):
 
 
 class Model(object):  # TODO: move names to supermodel
-    def __init__(self, variables, names, initialize=True):
-        self.variables = np.mat(variables).T
+    def __init__(self, variables, names, initialize=True, pseudocount=False):
+        if pseudocount:
+            self.variables = np.mat(variables + 1).T
+            self._pseudocount = True
+        else:
+            self.variables = np.mat(variables).T
+            self._pseudocount = False
+
         # print variables.shape, "->", self.variables.shape
         self.names = names
         self._fmask = None
@@ -64,23 +70,25 @@ class Model(object):  # TODO: move names to supermodel
         # assert_probmatrix(self.variables.T)
 
         # reduction of model complexity
-        fmask_old = self._fmask
-        self._fmask = np.asarray(self.variables, dtype=bool).all(axis=1)
-        if fmask_old is not None and np.any(fmask_old != self._fmask):
-            dimchange = True
-            # toggled_f = np.where(self._fmask != fmask_old)[0]
-            # stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
+        if not self._pseudocount:
+            fmask_old = self._fmask
+            self._fmask = np.asarray(self.variables, dtype=bool).all(axis=1)
+            if fmask_old is not None and np.any(fmask_old != self._fmask):
+                dimchange = True
+                # toggled_f = np.where(self._fmask != fmask_old)[0]
+                # stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
+            self._loglikes = np.log(self.variables[self._fmask])
             stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
-
-        # self._loglikes = np.log(self.variables)
-        self._loglikes = np.log(self.variables[self._fmask])
-        return dimchange
+            return dimchange
+        self._loglikes = np.log(self.variables)
+        return False
 
     def log_likelihood(self, data):
 #	print >> stderr, "data dimension: %s, loglike dimension: %s" % (data.frequencies.shape, self._loglikes.shape)
 	assert data.num_features == self._loglikes.shape[0]
+        if self._pseudocount:
+              return data.frequencies * self._loglikes
         return data.frequencies[:, self._fmask] * self._loglikes #/ data.sizes  # DEBUG: last division term for normalization
-        #return data.frequencies * self._loglikes
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         if cmask is not None:
@@ -98,13 +106,15 @@ class Model(object):  # TODO: move names to supermodel
 
     @property
     def features_used(self):
+        if self._pseudocount:
+            return self.variables.shape[0]  # TODO: check dimension!
         assert self._fmask is not None
         return sum(self._fmask)
 
     _short_name = "NB_model"
 
 
-def load_model_tuples(inseq):  # TODO: make generic
+def load_model_tuples(inseq, **kwargs):  # TODO: make generic
     cols = []
     names = []
     try:
@@ -119,11 +129,11 @@ def load_model_tuples(inseq):  # TODO: make generic
     except TypeError:
         stderr.write("Could not parse model definition line\n")
         exit(1)
-    return map(lambda v: Model(np.vstack(v), names), cols)
+    return map(lambda v: Model(np.vstack(v), names, **kwargs), cols)
 
 
 # TODO: add load_data from generic with data-specific parse_line function
-load_model = lambda i: load_model_tuples(common.parse_lines(i))  # TODO: move to model class?
+load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines(i), **kwargs)  # TODO: move to model class?
 
 
 def random_model(component_number, feature_number):
