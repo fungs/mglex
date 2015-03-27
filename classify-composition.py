@@ -1,15 +1,16 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-u"""
+"""
 Test classification to frequency components with composition.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-import composition,common
+import composition
+import common
 import numpy as np
-from itertools import izip
+
 from sys import argv, stdin, stdout, stderr
 
 
@@ -28,13 +29,13 @@ if __name__ == "__main__":
     log_likelihood = model.log_likelihood(data)
 
     #membership = common.exp_normalize(smoothing_factor*log_likelihood)
-    membership_log = -np.log(common.exp_normalize(log_likelihood))
+    membership_log = -np.log(common.exp_normalize(log_likelihood))  # output as -log(P)
 
     # print header line
     stdout.write("#%s\n" % "\t".join(model.names))
 
-    for d, m in izip(dnames, np.asarray(membership_log)):
+    for d, m in zip(dnames, np.asarray(membership_log)):
 #        (i1, L1), (i2, L2) = common.argmax(m, n=2)
 #        assert(i1 != i2)
 #        stdout.write("%s\t%s\t%s\t%.2f\n" % (d, model.names[i1], model.names[i2], L1-L2))
-        stdout.write("%s\t%s\n" % (d, "\t".join(map(lambda x: "%.2f" % x, m))))
+        stdout.write("%s\t%s\n" % (d, "\t".join(["%.2f" % x for x in m])))

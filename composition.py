@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-u"""
+"""
 This file holds all the functions and types necessary for probabilistic modelling of DNA composition.
 """
 
@@ -36,7 +36,7 @@ class Data(object):
         # self.frequencies /= np.float32(tmp)  # TODO: normalization necessary? make smarter operations, calculate earlier
         # self.sizes = tmp.T
         self.sizes = self.frequencies.sum(axis=1).T
-	self.frequencies = self.frequencies / common.prob_type(self.sizes.T)
+        self.frequencies = self.frequencies / common.prob_type(self.sizes.T)
         return self
 
     @property
@@ -59,6 +59,7 @@ class Model(object):  # TODO: move names to supermodel
         # print variables.shape, "->", self.variables.shape
         self.names = names
         self._fmask = None
+        self._loglikes = None
         if initialize:
             self.update()
 
@@ -85,9 +86,9 @@ class Model(object):  # TODO: move names to supermodel
 
     def log_likelihood(self, data):
 #	print >> stderr, "data dimension: %s, loglike dimension: %s" % (data.frequencies.shape, self._loglikes.shape)
-	assert data.num_features == self._loglikes.shape[0]
+        assert data.num_features == self._loglikes.shape[0]
         if self._pseudocount:
-              return data.frequencies * self._loglikes
+            return data.frequencies * self._loglikes
         return data.frequencies[:, self._fmask] * self._loglikes #/ data.sizes  # DEBUG: last division term for normalization
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
@@ -129,18 +130,18 @@ def load_model_tuples(inseq, **kwargs):  # TODO: make generic
     except TypeError:
         stderr.write("Could not parse model definition line\n")
         exit(1)
-    return map(lambda v: Model(np.vstack(v), names, **kwargs), cols)
+    return [Model(np.vstack(v), names, **kwargs) for v in cols]
 
 
 # TODO: add load_data from generic with data-specific parse_line function
-load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines(i), **kwargs)  # TODO: move to model class?
+load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines_comma(i), **kwargs)  # TODO: move to model class?
 
 
 def random_model(component_number, feature_number):
     initial_freqs = np.asarray(np.random.rand(component_number, feature_number), dtype=common.prob_type)
-    return Model(initial_freqs, map(str, range(component_number)))
+    return Model(initial_freqs, list(map(str, list(range(component_number)))))
 
 
 def empty_model(component_number, feature_number):
     initial_freqs = np.zeros(shape=(component_number, feature_number), dtype=common.prob_type)
-    return Model(initial_freqs, map(str, range(component_number)), initialize=False)
+    return Model(initial_freqs, list(map(str, list(range(component_number)))), initialize=False)

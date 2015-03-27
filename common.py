@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-u"""
+"""
 This file contains helper functions and types.
 """
 
@@ -11,8 +11,10 @@ import numpy as np
 from collections import Iterable
 from numpy.testing import assert_approx_equal
 from operator import itemgetter
-from itertools import izip, count, ifilterfalse
+from itertools import count, filterfalse
+import unittest
 from sys import stderr
+
 
 # common data types
 prob_type = np.float16
@@ -25,11 +27,11 @@ class UniversalData(list):  # TODO: rename GenericData
 
     def deposit(self, features):
         # self.names.append(name)
-        for d, f in izip(self, features):
+        for d, f in zip(self, features):
             d.deposit(f)
 
     def prepare(self):
-        return map(lambda d: d.prepare(), self)  # TODO: return self without conversion to list by map
+        return [d.prepare() for d in self]  # TODO: return self without conversion to list by map
 
     @property
     def sizes(self):  # transitional
@@ -53,8 +55,8 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
     @property
     def names(self):
         if len(self) > 1:
-            component_names = zip(*map(lambda m: m.names, self))
-            return map(lambda t: ",".join(uniq(t)), component_names)
+            component_names = list(zip(*[m.names for m in self]))
+            return [",".join(uniq(t)) for t in component_names]
         return self[0].names
 
     @property
@@ -63,7 +65,7 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
 
     def log_likelihood(self, data):
         loglike = self[0].log_likelihood(data[0])
-        for m, d in izip(self[1:], data[1:]):
+        for m, d in zip(self[1:], data[1:]):
             m_loglike = m.log_likelihood(d)
             loglike += m_loglike
         return loglike
@@ -73,8 +75,12 @@ def parse_lines(lines):
     for line in lines:
         if not line or line[0] == "#":  # skip empty lines and comments
             continue
-        fields = line.rstrip().split("\t")
-        fields[1:] = map(lambda s: s.split(","), fields[1:])
+        yield line.rstrip().split("\t")
+
+
+def parse_lines_comma(lines):
+    for fields in parse_lines(lines):
+        fields[1:] = [s.split(",") for s in fields[1:]]  # TODO: remove name column from input
         yield tuple(fields)
 
 
@@ -90,14 +96,15 @@ def load_data_tuples(inseq, store):  # TODO: make dependent on data class
         return names, store.prepare()
 
 
-load_data = lambda lines, store: load_data_tuples(parse_lines(lines), store)
+load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
 
 
 def assert_probmatrix(mat):
     is_sum = mat.sum()
     should_sum = mat.shape[0]
-    assert_approx_equal(is_sum, should_sum)
-    assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
+    unittest.assertAlmostEqual(is_sum, should_sum)
+    [unittest.assertAlmostEqual(rowsum, 1.) for row in rowsum in mat.sum(axis=1)]
+    # assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
     # print np.all(mat.sum(axis=1) == 1.)
 
 
@@ -115,7 +122,7 @@ assert_probarray = lambda v: assert_approx_equal(v.sum(), 1.)
 def argmax(s, n=1):
     get_second = itemgetter(1)
     max_store = sorted(list(enumerate(s[:n])), key=get_second, reverse=True)
-    for e in izip(count(n), s[n:]):
+    for e in zip(count(n), s[n:]):
         max_store = sorted(max_store + [e], key=get_second, reverse=True)[:n]
     if n == 1:
         return max_store[0]
@@ -142,16 +149,16 @@ def total_likelihood(log_mat):
 
 
 def exp_normalize_inplace(data):  # important: works in-place
-    data -= data.max(axis=1)  # avoid tiny numbers
+    data -= data.max(axis=1, keepdims=True)  # avoid tiny numbers
     data = np.exp(data)
-    data /= data.sum(axis=1)
+    data /= data.asum(axis=1, keepdims=True)
     return data
 
 
-def exp_normalize(data):  # important: works in-place
-    ret = data - data.max(axis=1)  # avoid tiny numbers
+def exp_normalize(data):
+    ret = data - np.amax(data, axis=1, keepdims=True)  # avoid tiny numbers
     ret = np.exp(ret)
-    ret /= ret.sum(axis=1)
+    ret /= np.sum(ret, axis=1, keepdims=True)
     return ret
 
 
@@ -162,7 +169,7 @@ def exp_normalize_1d_inplace(data):  # important: works in-place
     return data
 
 
-def exp_normalize_1d(data):  # important: works in-place
+def exp_normalize_1d(data):
     ret = data - data.max()  # avoid tiny numbers
     ret = np.exp(ret)
     ret /= ret.sum()
@@ -184,7 +191,7 @@ def seeds2indices(seeds, data):
         for n in names:
             name2cluster[n] = i
 
-    seed_indices = [[] for i in xrange(len(seeds))]
+    seed_indices = [[] for i in range(len(seeds))]
 
     # b) determine indices of seeds
     for i, name in enumerate(data.names):
@@ -394,7 +401,7 @@ def plot_clusters_pca(responsibilities, color_groups):
     import pylab as pl
     from random import shuffle
 
-    colors = colors_dict.values()
+    colors = list(colors_dict.values())
     shuffle(colors)
 
     pca = RandomizedPCA(n_components=2)
@@ -424,13 +431,13 @@ def plot_clusters_igraph(responsibilities, color_groups):
     from igraph import Graph, plot
     data = responsibilities[:, :2]
     Y = pdist(data, hellinger_distance)
-    print >>stderr, Y[:30]
+    print(Y[:30], file=stderr)
     # return
     g = Graph()
     n = data.shape[0]
     g.add_vertices(n)
     colors = ["grey"]*n
-    palette = colors_dict.values()
+    palette = list(colors_dict.values())
     for j, group in enumerate(color_groups):
         c = palette[j]
         for i in group:
@@ -438,7 +445,7 @@ def plot_clusters_igraph(responsibilities, color_groups):
     l = g.layout_mds(dist=squareform(Y))
     plot(g, layout=l, vertex_color=colors, bbox=(1024, 1024), vertex_size=5)
 
-from itertools import ifilterfalse
+from itertools import filterfalse
 
 
 # c&p from stackexchange
@@ -449,7 +456,7 @@ def uniq(iterable, key=None):
     seen = set()
     seen_add = seen.add
     if key is None:
-        for element in ifilterfalse(seen.__contains__, iterable):
+        for element in filterfalse(seen.__contains__, iterable):
             seen_add(element)
             yield element
     else:
