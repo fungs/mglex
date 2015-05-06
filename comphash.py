@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-u"""
+"""
 Explore a new way to measure nucleotide composition.
 """
 
@@ -125,8 +125,8 @@ def bin2hash(binmer, patterns):
 def feature2string(f, norm):
     if norm:
         total = float(sum(f))
-        return ",".join(map(lambda x: "%.8f" % (x/total), f))
-    return ",".join(map(lambda x: "%i" % x, f))
+        return ",".join(["%.8f" % (x/total) for x in f])
+    return ",".join(["%i" % x for x in f])
 
 
 featurelist2string = lambda flist, norm: "\t".join([feature2string(f, norm) for f in flist])
@@ -145,8 +145,8 @@ if __name__ == "__main__":
     try:
         (opts, args) = getopt.getopt(argv[1:], "hi:nc",
                                      ["help", "informat=", "normalize", "cumulative"])
-    except getopt.GetoptError, err:
-        print str(err)  # will print something like "option -a not recognized"
+    except getopt.GetoptError as err:
+        print(str(err))  # will print something like "option -a not recognized"
         usage()
         exit(2)
 
