@@ -27,4 +27,4 @@ if __name__ == "__main__":
             coverage = map(int, coverage.split(","))  # TODO: use sparse numpy objects...
             sample2coverage[sample_name] = coverage
         
-        stdout.write("%s\t%s\n" % (seqname,"-".join([ "%i" % round(median(sample2coverage.get(s,.0))) for s in samples ])))
+        stdout.write("%s\t%s\n" % (seqname, "-".join(["%i" % round(median(sample2coverage.get(s, .0))) for s in samples])))

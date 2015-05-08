@@ -41,7 +41,8 @@ def e_step(models, priors, data):
     return exp_normalize(loglike), total_likelihood(loglike)
 
 
-def m_step(models, responsibilities, data):
+def m_step(models, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
+                                             # priors or responsibilities? -> sequence length in data? -> consistent?
     # assert_probmatrix(responsibilities)
     priors = get_priors(data.sizes, responsibilities)  # TODO: check correctness
     cmask = np.asarray(priors, dtype=bool)  # determine empty clusters
