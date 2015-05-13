@@ -13,7 +13,7 @@ from numpy.testing import assert_approx_equal
 from operator import itemgetter
 from itertools import count, filterfalse
 import unittest
-from sys import stderr
+from sys import stderr, stdout
 
 
 # common data types
@@ -28,6 +28,7 @@ class UniversalData(list):  # TODO: rename GenericData
     def deposit(self, features):
         # self.names.append(name)
         for d, f in zip(self, features):
+            print(d, f)
             d.deposit(f)
 
     def prepare(self):
@@ -70,40 +71,47 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
             loglike += m_loglike
         return loglike
 
+    def maximize_likelihood(self, responsibilities, data, cmask=None):
+        tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]
+        return any(tmp)
+
 
 def parse_lines(lines):
     for line in lines:
         if not line or line[0] == "#":  # skip empty lines and comments
             continue
-        yield line.rstrip().split("\t")
+        yield line.rstrip()
 
 
-def parse_lines_comma(lines):
-    for fields in parse_lines(lines):
-        fields[1:] = [s.split(",") for s in fields[1:]]  # TODO: remove name column from input
-        yield tuple(fields)
+# def parse_lines_comma(lines):
+#     for fields in parse_lines(lines):
+#         fields[1:] = [s.split(",") for s in fields[1:]]  # TODO: remove name column from input
+#         yield tuple(fields)
 
 
-def load_data_tuples(inseq, store):  # TODO: make dependent on data class
-        names = []
-        for record in inseq:
-            names.append(record[0])
-            features = record[1:]
-            if len(features) > 0 and isinstance(features[0], Iterable) and not isinstance(store, UniversalData):  # hack to make this work for UniversalData and Data
-                store.deposit(*features)
-            else:
-                store.deposit(features)
-        return names, store.prepare()
+# def load_data_tuples(inseq, store):  # TODO: make dependent on data class
+#         names = []
+#         for record in inseq:
+#             names.append(record[0])
+#             features = record[1:]
+#             if len(features) > 0 and isinstance(features[0], Iterable) and not isinstance(store, UniversalData):  # hack to make this work for UniversalData and Data
+#                 store.parse_data(*features)
+#             else:
+#                 store.deposit(features)
+#         return names, store.prepare()
 
 
-load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
+#load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
+
+def load_data_file(fh, store):
+    store.parse(parse_lines(fh))
 
 
 def assert_probmatrix(mat):
     is_sum = mat.sum()
     should_sum = mat.shape[0]
-    unittest.assertAlmostEqual(is_sum, should_sum)
-    [unittest.assertAlmostEqual(rowsum, 1.) for row in rowsum in mat.sum(axis=1)]
+    assert_approx_equal(is_sum, should_sum, significant=0)
+    [assert_approx_equal(rowsum, 1., significant=0) for rowsum in mat.sum(axis=1)]
     # assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
     # print np.all(mat.sum(axis=1) == 1.)
 
@@ -133,7 +141,7 @@ flat_priors = lambda n: np.repeat(1./n, n)
 
 
 def total_likelihood_inplace(log_mat):
-    correction = np.max(log_mat, axis=1)  # tiny number correction
+    correction = np.max(log_mat, axis=1, keepdims=True)  # tiny number correction
     log_mat -= correction
     l_per_datum = np.exp(log_mat).sum(axis=1)
     log_vec = np.log(l_per_datum) + correction
@@ -141,7 +149,7 @@ def total_likelihood_inplace(log_mat):
 
 
 def total_likelihood(log_mat):
-    correction = np.max(log_mat, axis=1)  # tiny number correction
+    correction = np.max(log_mat, axis=1, keepdims=True)  # tiny number correction
     tmp = log_mat - correction
     l_per_datum = np.exp(tmp).sum(axis=1)
     log_vec = np.log(l_per_datum) + correction
@@ -184,7 +192,7 @@ def log_fac(i):
     return r
 
 
-def seeds2indices(seeds, data):
+def seeds2indices(seqnames, seeds):
     # a) build a dictionary for the seeds for fast lookup
     name2cluster = {}
     for i, names in enumerate(seeds):
@@ -194,7 +202,7 @@ def seeds2indices(seeds, data):
     seed_indices = [[] for i in range(len(seeds))]
 
     # b) determine indices of seeds
-    for i, name in enumerate(data.names):
+    for i, name in enumerate(seqnames):
         cluster_index = name2cluster.get(name, None)
         if cluster_index is not None:
             seed_indices[cluster_index].append(i)
@@ -465,6 +473,14 @@ def uniq(iterable, key=None):
             if k not in seen:
                 seen_add(k)
                 yield element
+
+
+def print_probmatrix(mat, out=stdout):
+    for row in np.asarray(mat):
+        out.write("\t".join(["%.2f" % i for i in row]))
+        out.write("\n")
+
+print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))
 
 
 if __name__ == "__main__":
