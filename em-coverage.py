@@ -28,7 +28,7 @@ if __name__ == "__main__":
     single_data = data[0]
 
     # construct inital (hard) responsibilities
-    responsibilities = responsibilities_from_seeds(data, seeds)
+    responsibilities = responsibilities_from_seeds(seeds, len(data))
 
     # load initial model
     models = UniversalModel([coverage.random_model(c, single_data.num_features, 1, 50)])

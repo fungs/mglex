@@ -10,34 +10,36 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 import common
 import numpy as np
 from itertools import compress
-from sys import stderr
-
-
-freq_type = np.uint16
+from sys import stderr, exit
 
 
 class Data(object):
     def __init__(self):
-        # self.names = []
         self._frequencies = []
         self.sizes = None
         self.frequencies = None
 
     def deposit(self, frequencies):  # TODO: adjust signature with UniversalData
-        # self.names.append(name)
-        frequencies = np.array(frequencies, dtype=np.uint32)  # freqencies must not exceed 4,294,967,295
+        frequencies = np.array(frequencies, dtype=self.composition_type)  # freqencies must not exceed 4,294,967,295
         maxtype = np.min_scalar_type(np.max(frequencies))
         row = frequencies.astype(maxtype)  # TODO: support sparse features
         self._frequencies.append(row)
 
     def prepare(self):
-        self.frequencies = np.mat(np.vstack(self._frequencies))  # TODO: check variable type casting behavior
-        # tmp = self.frequencies.sum(axis=1)
-        # self.frequencies /= np.float32(tmp)  # TODO: normalization necessary? make smarter operations, calculate earlier
-        # self.sizes = tmp.T
-        self.sizes = self.frequencies.sum(axis=1).T
-        self.frequencies = self.frequencies / common.prob_type(self.sizes.T)
+        self.frequencies = np.vstack(self._frequencies)
+        self.sizes = self.frequencies.sum(axis=1, keepdims=True)
+        print("frequencies before normalization")
+        print(self.frequencies[:4, :])
+        self.frequencies = self.frequencies / common.prob_type(self.sizes)
+        print("frequencies after normalization")
+        print(self.frequencies[:4, :])
+        common.assert_probmatrix(self.frequencies)
         return self
+
+    def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
+        for entry in inseq:
+            self.deposit(entry.split(","))
+        return self.prepare()
 
     @property
     def num_features(self):
@@ -46,58 +48,66 @@ class Data(object):
     def __len__(self):
         return self.frequencies.shape[0]
 
+    composition_type = np.uint32
+
 
 class Model(object):  # TODO: move names to supermodel
-    def __init__(self, variables, names, initialize=True, pseudocount=False):
-        if pseudocount:
-            self.variables = np.mat(variables + 1).T
-            self._pseudocount = True
-        else:
-            self.variables = np.mat(variables).T
-            self._pseudocount = False
-
-        # print variables.shape, "->", self.variables.shape
+    def __init__(self, variables, names, initialize=True, pseudocount=False):  # TODO: add pseudocount implementation
         self.names = names
+        self.variables = variables
         self._fmask = None
         self._loglikes = None
+        self._pseudocount = pseudocount
         if initialize:
             self.update()
 
     def update(self):
-        assert len(self.names) == self.variables.shape[1]  # TODO: check dimension param
+        assert len(self.names) == self.variables.shape[0]  # TODO: check dimension param
+        assert(self.variables.sum(axis=1).all())  # DEBUG: remove
         dimchange = False
-        assert(self.variables.sum(axis=0).all())  # DEBUG: remove
-        self.variables = common.prob_type(self.variables / self.variables.sum(axis=0))  # TODO: optimize memory use
-        # assert_probmatrix(self.variables.T)
 
         # reduction of model complexity
         if not self._pseudocount:
+            self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory use
+            common.assert_probmatrix(self.variables)
             fmask_old = self._fmask
-            self._fmask = np.asarray(self.variables, dtype=bool).all(axis=1)
+            self._fmask = np.asarray(self.variables, dtype=bool).all(axis=0)
             if fmask_old is not None and np.any(fmask_old != self._fmask):
                 dimchange = True
-                # toggled_f = np.where(self._fmask != fmask_old)[0]
-                # stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
-            self._loglikes = np.log(self.variables[self._fmask])
-            stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
+                stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
+            self._loglikes = np.log(self.variables[:, self._fmask])
+            # stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
             return dimchange
+
+        stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
+        exit(1)
+
+        self.variables += 1  # TODO: change code
+        self.variables = common.prob_type(self.variables / self.variables.sum(axis=0))  # TODO: optimize memory use
+        common.assert_probmatrix(self.variables.T)
         self._loglikes = np.log(self.variables)
         return False
 
     def log_likelihood(self, data):
-#	print >> stderr, "data dimension: %s, loglike dimension: %s" % (data.frequencies.shape, self._loglikes.shape)
-        assert data.num_features == self._loglikes.shape[0]
+        # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
+        assert data.num_features == self._loglikes.shape[1]
         if self._pseudocount:
-            return data.frequencies * self._loglikes
-        return data.frequencies[:, self._fmask] * self._loglikes #/ data.sizes  # DEBUG: last division term for normalization
+            stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
+            exit(1)
+            return np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
+        return np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         if cmask is not None:
-            self.variables = data.frequencies.T * responsibilities[:, cmask]
+            self.variables = np.dot(responsibilities[:, cmask].T, data.frequencies)
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
         else:
-            self.variables = data.frequencies.T * responsibilities
-        # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
+            common.assert_probmatrix(data.frequencies)
+            self.variables = np.dot(responsibilities.T, data.frequencies)
+        print("updated model composition:")
+        print(self.variables.shape)
+        print(self.variables[:2, :])
+        stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
         return self.update()
 
     @property

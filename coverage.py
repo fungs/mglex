@@ -43,14 +43,14 @@ class Data:
         row_covsums = self._zero_count_vector.copy()
         # row_facsums = self._zero_count_vector_uint.copy()  # TODO. remove optional term
 
-        for sample_group in features.split(" "):
-            sample_name, coverages = sample_group.split(":", 2)[:2]
-            coverages = map(np.uint32, coverages.split(","))  # TODO: use sparse numpy objects...
+        for sample_name, sample_coverage in features:
+            coverage = list(map(self.coverage_type, sample_coverage))  # TODO: use sparse numpy objects...
+            # print(coverage)
             # feature_list.append((sample_name, coverage))
             try:
                 index = self._samplename2index[sample_name]
-                row_covsums[index] = np.sum(coverages)
-                length = len(coverages)
+                row_covsums[index] = np.sum(coverage)
+                length = len(coverage)
                 # tmp = sum(map(log_fac, coverages))/length
                 # print >>stderr, tmp
                 # row_facsums[index] = tmp  # TODO: simplify or remove (one term per datum)
@@ -63,6 +63,15 @@ class Data:
         self._seqlens.append(length)
         # self._sum_log_fac_covs.append(row_facsums)  # TODO: simplify or remove (one term per datum)
         # self.names.append(name)
+
+    def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
+        for entry in inseq:
+            feature_list = []
+            for sample_group in entry.split(" "):
+                sample_name, sample_coverage = sample_group.split(":", 2)[:2]
+                feature_list.append((sample_name, sample_coverage.split(",")))
+            self.deposit(feature_list)
+        return self.prepare()
 
     def prepare(self):
         self.covsums = np.mat(np.vstack(self._covsums))
@@ -78,10 +87,18 @@ class Data:
     def __len__(self):
         return self.covsums.shape[0]
 
+    coverage_type = np.uint32
+
 
 class Model:
-    def __init__(self, params, initialize=True):
-        self.params = np.mat(params).T
+    def __init__(self, params, initialize=True, pseudocount=False):  # does pseudocount make sense here?
+        if pseudocount:
+            self.params = np.mat(params + 1).T
+            self._pseudocount = True
+        else:
+            self.params = np.mat(params).T
+            self._pseudocount = False
+
         if initialize:
             self.update()
 
@@ -92,7 +109,7 @@ class Model:
         self._params_log = np.log(self.params)
         return False  # indicates whether a dimension change occurred
 
-    def log_likelihood(self, data):
+    def log_likelihood(self, data):  # TODO: check and adjust formula
         loglike = (data.covsums * self._params_log) - (data.sizes.T * self._params_sum)  # - data.facterm  # last term is optional!
         # print >>stderr, loglike
         return loglike

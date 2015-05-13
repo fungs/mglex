@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-u"""
+"""
 This file contains all higher-level functionality required by the EM estimation procedure which is independent of the
 actual data and models.
 """
@@ -16,7 +16,7 @@ from common import *
 
 
 def get_priors(quantities, responsibilities):
-    priors = np.squeeze(np.asarray(quantities * responsibilities))
+    priors = np.squeeze(np.dot(quantities, responsibilities))  # np.asarray necessary?
     priors /= priors.sum()
     assert_probarray(priors)  # TODO: remove
     return priors
@@ -24,39 +24,24 @@ def get_priors(quantities, responsibilities):
 
 def e_step(models, priors, data):
     assert_probarray(priors)
-    loglike = models[0].log_likelihood(data[0])  # TODO: switch to UniversalData representation?
-    # loglike = models.rescale[0]*models[0].log_likelihood(data[0])
-    # impact = [total_likelihood(loglike)]
-    for m, d in izip(models[1:], data[1:]):
-        m_loglike = m.log_likelihood(d)
-        # impact.append(total_likelihood(m_loglike))
-        # print >>stderr, "data loglike shape:", m_loglike.shape
-        loglike += m_loglike
-    # impact = np.array(impact)
-    # impact = exp_normalize_1d(impact)
-    # stderr.write("LOG E: submodel impact %s\n" % impact)
+    loglike = models.log_likelihood(data)
     loglike = loglike + np.log(priors)  # TODO: why doesn't += work?
-
-    # stderr.write("LOG E: Finished E step\n")
     return exp_normalize(loglike), total_likelihood(loglike)
 
 
-def m_step(models, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
+def m_step(model, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
                                              # priors or responsibilities? -> sequence length in data? -> consistent?
     # assert_probmatrix(responsibilities)
-    priors = get_priors(data.sizes, responsibilities)  # TODO: check correctness
+    priors = get_priors(data.sizes.T, responsibilities)  # TODO: check correctness
     cmask = np.asarray(priors, dtype=bool)  # determine empty clusters
     if np.any(np.logical_not(cmask)):
-        stderr.write(
-            "LOG M: The following clusters are removed: %s\n" % ",".join(map(str, np.where(np.logical_not(priors))[0])))
-    # assert all(priors)  # TODO: remove
-    dimchange = any(map(lambda (m, d): m.maximize_likelihood(responsibilities, d, cmask), izip(models, data)))  # TODO: switch to UniversalData representation?
-    # stderr.write("LOG M: %i active mixture components\n" % model.components)
-    # stderr.write("LOG M: Finished M step\n")
-    return models, priors[cmask], dimchange
+        stderr.write("LOG M: The following clusters are removed: %s\n"
+                     % ",".join(map(str, np.where(np.logical_not(priors))[0])))
+    dimchange = model.maximize_likelihood(responsibilities, data, cmask)
+    return model, priors[cmask], dimchange
 
 
-def em(models, priors, data, responsibilities=None, maxiter=None):
+def em(model, priors, data, responsibilities=None, maxiter=None):
     step_counter = count(1)
     dimchange = False
     loglike = None
@@ -67,14 +52,16 @@ def em(models, priors, data, responsibilities=None, maxiter=None):
     delta_counter = 0
 
     if responsibilities is not None:  # TODO: check correctness
-        models, priors, dimchange = m_step(models, responsibilities, data)
+        model, priors, dimchange = m_step(model, responsibilities, data)
+        print("initial model priors:")
+        print(priors)
 
     for i in step_counter:
         lloglike = loglike
-        lpriors = priors
-        ldimchange = dimchange
-
-        responsibilities, loglike = e_step(models, priors, data)
+        responsibilities, loglike = e_step(model, priors, data)
+        print("current step responsibility of first and last data:")
+        print(responsibilities[0, :])
+        print(responsibilities[-1, :])
 
         if lloglike:
             diff = loglike - lloglike
@@ -83,9 +70,9 @@ def em(models, priors, data, responsibilities=None, maxiter=None):
             else:
                 delta_color = "blue"
             stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (
-            i, colored("%i" % loglike, "yellow").rjust(padlen_ll),
-            colored("%.2f" % diff, delta_color).rjust(padlen_delta),
-            colored(" ".join(map(lambda f: "%2.2f" % f, sorted(priors, reverse=True))), "green")))
+                i, colored("%i" % loglike, "yellow").rjust(padlen_ll),
+                colored("%.2f" % diff, delta_color).rjust(padlen_delta),
+                colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
             diffsum += diff
         else:
             loglike_str = "%i" % loglike
@@ -95,13 +82,9 @@ def em(models, priors, data, responsibilities=None, maxiter=None):
             padlen_ll = len(loglike_str)
             padlen_delta = padlen_ll + 3
             stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (i, loglike_str, "".rjust(padlen_delta - cclen),
-                                                                         colored(" ".join(map(lambda f: "%2.2f" % f,
-                                                                                              sorted(priors,
-                                                                                                     reverse=True))),
-                                                                                 "green")))
+                colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
 
-        models, priors, dimchange = m_step(models, responsibilities, data)
-        # stderr.write( "dimchange? %s\n" % dimchange)
+        model, priors, dimchange = m_step(model, responsibilities, data)
 
         if approx_equal(diff, .0, precision=10**-3):
             delta_counter += 1
@@ -111,13 +94,13 @@ def em(models, priors, data, responsibilities=None, maxiter=None):
         if i == maxiter or priors.size == 1 or delta_counter >= 10:
             # print >>stderr, maxiter, priors.size, delta_counter
             break
-    return models, priors, responsibilities
+    return model, priors, responsibilities
 
 
 def print_clusters(responsibilities, datanames, clusternames, out=stdout):
     infinity = float("inf")
     if responsibilities.shape[0] > 1:
-        for name, res in izip(datanames, np.asarray(responsibilities)):
+        for name, res in zip(datanames, np.asarray(responsibilities)):
             (i1, l1), (i2, l2) = argmax(res, n=2)
             if l2 != 0.:
                 logdiff = np.log(l1) - np.log(l2)
@@ -130,8 +113,8 @@ def print_clusters(responsibilities, datanames, clusternames, out=stdout):
 def print_responsiblities(responsibilities, datanames, clusternames, out=stdout):
     if responsibilities.shape[0] > 1:
         out.write("#%s\t%s\n" % ("responsibility_matrix", "\t".join(clusternames)))
-        for name, res in izip(datanames, np.asarray(responsibilities)):
-            out.write("%s\t%s\n" % (name, "\t".join(map(lambda f: "%.4f" % f, res))))
+        for name, res in zip(datanames, np.asarray(responsibilities)):
+            out.write("%s\t%s\n" % (name, "\t".join(["%.4f" % f for f in res])))
 
 
 if __name__ == "__main__":
