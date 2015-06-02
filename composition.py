@@ -28,11 +28,15 @@ class Data(object):
     def prepare(self):
         self.frequencies = np.vstack(self._frequencies)
         self.sizes = self.frequencies.sum(axis=1, keepdims=True)
-        print("frequencies before normalization")
-        print(self.frequencies[:4, :])
-        self.frequencies = self.frequencies / common.prob_type(self.sizes)
-        print("frequencies after normalization")
-        print(self.frequencies[:4, :])
+        print("Data frequencies")
+        common.print_vector(self.frequencies[0, :])
+        common.print_vector(self.frequencies[-1, :])
+        common.newline()
+        self.frequencies = self.frequencies / common.prob_type(self.sizes)  # TODO: why does /= not work?
+        # print("data frequencies after normalization")
+        # common.print_probvector(self.frequencies[0, :])
+        # common.print_probvector(self.frequencies[-1, :])
+        # common.newline()
         common.assert_probmatrix(self.frequencies)
         return self
 
@@ -58,17 +62,18 @@ class Model(object):  # TODO: move names to supermodel
         self._fmask = None
         self._loglikes = None
         self._pseudocount = pseudocount
+
         if initialize:
+            self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # normalize
             self.update()
 
     def update(self):
         assert len(self.names) == self.variables.shape[0]  # TODO: check dimension param
-        assert(self.variables.sum(axis=1).all())  # DEBUG: remove
+        common.assert_probmatrix(self.variables)
         dimchange = False
 
         # reduction of model complexity
         if not self._pseudocount:
-            self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory use
             common.assert_probmatrix(self.variables)
             fmask_old = self._fmask
             self._fmask = np.asarray(self.variables, dtype=bool).all(axis=0)
@@ -77,14 +82,22 @@ class Model(object):  # TODO: move names to supermodel
                 stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
             self._loglikes = np.log(self.variables[:, self._fmask])
             # stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
+
+            print("Model composition for %i clusters and %i features:" % self.variables.shape)
+            common.print_probvector(self.variables[0, :])
+            common.print_probvector(self.variables[-1, :])
+            common.newline()
             return dimchange
 
         stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
         exit(1)
 
+        # simple pseudocount method (add frequency 1 to all counts), TODO: maybe add .5 where necessary only, or leave to initialization method
+        # problem: update() is called after each maximize step
+
         self.variables += 1  # TODO: change code
-        self.variables = common.prob_type(self.variables / self.variables.sum(axis=0))  # TODO: optimize memory use
-        common.assert_probmatrix(self.variables.T)
+        self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory usage
+        common.assert_probmatrix(self.variables)
         self._loglikes = np.log(self.variables)
         return False
 
@@ -102,12 +115,20 @@ class Model(object):  # TODO: move names to supermodel
             self.variables = np.dot(responsibilities[:, cmask].T, data.frequencies)
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
         else:
-            common.assert_probmatrix(data.frequencies)
-            self.variables = np.dot(responsibilities.T, data.frequencies)
-        print("updated model composition:")
-        print(self.variables.shape)
-        print(self.variables[:2, :])
-        stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
+            common.assert_probmatrix(data.frequencies)  # TODO: remove
+            common.assert_probmatrix(responsibilities)  # TODO: remove
+            self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
+
+        self.variables = self.variables / responsibilities.sum(axis=0, keepdims=True).T  # normalize before update
+
+        # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
+        # common.print_probvector(self.variables.sum(axis=1))
+        # common.print_vector(responsibilities.sum(axis=0))
+        # common.print_probvector(self.variables[0, :])
+        # common.print_probvector(self.variables[-1, :])
+        # common.newline()
+        # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
+
         return self.update()
 
     @property
@@ -147,11 +168,11 @@ def load_model_tuples(inseq, **kwargs):  # TODO: make generic
 load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines_comma(i), **kwargs)  # TODO: move to model class?
 
 
-def random_model(component_number, feature_number):
-    initial_freqs = np.asarray(np.random.rand(component_number, feature_number), dtype=common.prob_type)
+def random_model(component_number, feature_number, pseudocount=False):
+    initial_freqs = np.asarray(np.random.rand(component_number, feature_number), dtype=common.prob_type, pseudocount=pseudocount)
     return Model(initial_freqs, list(map(str, list(range(component_number)))))
 
 
-def empty_model(component_number, feature_number):
-    initial_freqs = np.zeros(shape=(component_number, feature_number), dtype=common.prob_type)
-    return Model(initial_freqs, list(map(str, list(range(component_number)))), initialize=False)
+def empty_model(component_number, feature_number, pseudocount=False):
+    initial_freqs = np.ones(shape=(component_number, feature_number), dtype=common.prob_type)
+    return Model(initial_freqs, list(map(str, list(range(component_number)))), initialize=False, pseudocount=pseudocount)
