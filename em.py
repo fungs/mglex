@@ -9,24 +9,24 @@ actual data and models.
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
 from sys import stderr, stdout
-
 from termcolor import colored
-
-from common import *
+from itertools import count
+import common
+import numpy as np
 
 
 def get_priors(quantities, responsibilities):
     priors = np.squeeze(np.dot(quantities, responsibilities))  # np.asarray necessary?
     priors /= priors.sum()
-    assert_probarray(priors)  # TODO: remove
+    common.assert_probarray(priors)  # TODO: remove
     return priors
 
 
 def e_step(models, priors, data):
-    assert_probarray(priors)
+    common.assert_probarray(priors)
     loglike = models.log_likelihood(data)
     loglike = loglike + np.log(priors)  # TODO: why doesn't += work?
-    return exp_normalize(loglike), total_likelihood(loglike)
+    return common.exp_normalize(loglike), common.total_likelihood(loglike)
 
 
 def m_step(model, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
@@ -53,15 +53,19 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
 
     if responsibilities is not None:  # TODO: check correctness
         model, priors, dimchange = m_step(model, responsibilities, data)
-        print("initial model priors:")
-        print(priors)
 
     for i in step_counter:
+        print("Cluster priors:")
+        common.print_probvector(priors)
+        common.newline()
+
         lloglike = loglike
         responsibilities, loglike = e_step(model, priors, data)
-        print("current step responsibility of first and last data:")
-        print(responsibilities[0, :])
-        print(responsibilities[-1, :])
+
+        print("Step %i responsibility of first and last data:" % i)
+        common.print_probvector(responsibilities[0, :])
+        common.print_probvector(responsibilities[-1, :])
+        common.newline()
 
         if lloglike:
             diff = loglike - lloglike
@@ -86,7 +90,7 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
 
         model, priors, dimchange = m_step(model, responsibilities, data)
 
-        if approx_equal(diff, .0, precision=10**-3):
+        if common.approx_equal(diff, .0, precision=10**-3):
             delta_counter += 1
         else:
             delta_counter = 0

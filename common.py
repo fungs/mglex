@@ -50,8 +50,9 @@ class UniversalData(list):  # TODO: rename GenericData
 
 
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
-    def __init__(self, *args, **kw):
+    def __init__(self, sharpness, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
+        self._sharpness = sharpness
 
     @property
     def names(self):
@@ -65,10 +66,13 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         return self[0].components
 
     def log_likelihood(self, data):
-        loglike = self[0].log_likelihood(data[0])
+        # start with equally weighted likelihoods
+        weight = self._sharpness/float(len(self))  # TODO: numpy types
+
+        loglike = weight * self[0].log_likelihood(data[0])
         for m, d in zip(self[1:], data[1:]):
             m_loglike = m.log_likelihood(d)
-            loglike += m_loglike
+            loglike += weight * m_loglike
         return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
@@ -111,7 +115,7 @@ def assert_probmatrix(mat):
     is_sum = mat.sum()
     should_sum = mat.shape[0]
     assert_approx_equal(is_sum, should_sum, significant=0)
-    [assert_approx_equal(rowsum, 1., significant=0) for rowsum in mat.sum(axis=1)]
+    [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1)]
     # assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
     # print np.all(mat.sum(axis=1) == 1.)
 
@@ -479,6 +483,21 @@ def print_probmatrix(mat, out=stdout):
     for row in np.asarray(mat):
         out.write("\t".join(["%.2f" % i for i in row]))
         out.write("\n")
+
+
+def print_probvector(vec, out=stdout):
+    out.write("|".join(("%.2f" % f for f in vec)))
+    out.write("\n")
+
+
+def print_vector(vec, out=stdout):
+    out.write("|".join(("%s" % i for i in vec)))
+    out.write("\n")
+
+
+def newline(out=stdout):
+    out.write("\n")
+
 
 print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))
 

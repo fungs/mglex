@@ -129,7 +129,7 @@ class Model:
             weighted_coverage_sum = data.covsums.T * responsibilities[:, cmask]
             weighted_length_sum = data.sizes * responsibilities[:, cmask]
 
-        self.params = weighted_coverage_sum/weighted_length_sum
+        self.params = weighted_coverage_sum / weighted_length_sum
         return self.update()
 
     @property
