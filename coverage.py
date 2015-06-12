@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-u"""
-# This file holds all the functions and types necessary for probabilistic modelling of (assembly coverage).
+"""
+# This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
@@ -18,17 +18,14 @@ frequency_type = np.int32
 class Data:
     def __init__(self, samples):
         self.samples = []
-        # self.names = []
         self._samplename2index = {}
         self._covsums = []
         self._seqlens = []
         self._sum_log_fac_covs = []  # TODO: remove optional part
         self._intialize_samples(samples)
         self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
-        # self._zero_count_vector_uint = np.zeros(len(samples), dtype=np.uint64)
         self.covsums = None
         self.sizes = None
-        # self.facterm = None
 
     def _intialize_samples(self, samples):
         for i, sample in enumerate(samples):
@@ -37,7 +34,7 @@ class Data:
 
     def deposit(self, features):  # TODO: improve data parsing and handling
         if not features:
-            print >>stderr, "empty coverage features set deposit!"
+            print("empty coverage features set deposit!", file=stderr)
 
         length = 0  # TODO: transfer length to UniversalData object and use only average coverage
         row_covsums = self._zero_count_vector.copy()
@@ -74,8 +71,8 @@ class Data:
         return self.prepare()
 
     def prepare(self):
-        self.covsums = np.mat(np.vstack(self._covsums))
-        self.sizes = np.mat(self._seqlens, dtype=frequency_type)
+        self.covsums = np.vstack(self._covsums)
+        self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, None]
         # self.facterm = self._sum_log_fac_covs.sum(axis=1)
         # assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
         return self
@@ -91,12 +88,12 @@ class Data:
 
 
 class Model:
-    def __init__(self, params, initialize=True, pseudocount=False):  # does pseudocount make sense here?
+    def __init__(self, params, initialize=True, pseudocount=False):  # TODO: does pseudocount make sense here?
         if pseudocount:
-            self.params = np.mat(params + 1).T
+            self.params = np.array(params + 1).T
             self._pseudocount = True
         else:
-            self.params = np.mat(params).T
+            self.params = np.array(params).T
             self._pseudocount = False
 
         if initialize:
@@ -105,29 +102,33 @@ class Model:
     def update(self):
         # if not np.all(self.params):
             # print >>stderr, "some cluster in some sample wasn't observed:", self.params
-        self._params_sum = self.params.sum(axis=0)
+        self._params_sum = self.params.sum(axis=0, keepdims=True)
         self._params_log = np.log(self.params)
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
-        loglike = (data.covsums * self._params_log) - (data.sizes.T * self._params_sum)  # - data.facterm  # last term is optional!
+        term1 = np.dot(data.covsums, self._params_log)
+        # print("term1 shape is %ix%i" % term1.shape)
+        term2 = np.dot(data.sizes, self._params_sum)
+        # print("term2 shape is %ix%i" % term2.shape)
+        loglike = term1 - term2  # - data.facterm  # last term is optional!
         # print >>stderr, loglike
         return loglike
 
     def get_labels(self, indices=None):
         if not indices:
-            indices = range(self.params.shape[1])
+            indices = list(range(self.params.shape[1]))
         for i in indices:
             yield "-".join(("%i" % round(v) for v in np.asarray(self.params)[:, i]))
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
         if cmask is None or cmask.shape == () or np.all(cmask):
-            weighted_coverage_sum = data.covsums.T * responsibilities
-            weighted_length_sum = data.sizes * responsibilities
+            weighted_coverage_sum = np.dot(data.covsums.T, responsibilities)
+            weighted_length_sum = np.dot(data.sizes.T, responsibilities)
         else:
             # print >>stderr, "shape of responsibilities vector:", responsibilities.shape
-            weighted_coverage_sum = data.covsums.T * responsibilities[:, cmask]
-            weighted_length_sum = data.sizes * responsibilities[:, cmask]
+            weighted_coverage_sum = np.dot(data.covsums.T, responsibilities[:, cmask])
+            weighted_length_sum = np.dot(data.sizes.T, responsibilities[:, cmask])
 
         self.params = weighted_coverage_sum / weighted_length_sum
         return self.update()
@@ -147,15 +148,15 @@ class Model:
     _short_name = "NB_model"
 
 
-def load_model(input):
+def load_model(instream):
     all_clists = []
     # samples = input.next().rstrip().split("\t")
-    for line in input:
+    for line in instream:
         if not line or line[0] == "#":
             continue
         clist = line.rstrip().split("\t")
         if clist:
-            all_clists.append(map(int, clist))
+            all_clists.append(list(map(int, clist)))
     return Model(all_clists)
 
 
@@ -168,7 +169,7 @@ def load_data(input, samples):  # TODO: add load_data from generic with data-spe
         feature_list = []
         for sample_group in coverage_field.split(" "):
             sample_name, coverage = sample_group.split(":", 2)[:2]
-            coverage = map(int, coverage.split(","))  # TODO: use sparse numpy objects...
+            coverage = list(map(int, coverage.split(",")))  # TODO: use sparse numpy objects...
             feature_list.append((sample_name, coverage))
         store.deposit(seqname, feature_list)
     return store.prepare()
