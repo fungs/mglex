@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # cov_data = coverage.Data(["j"])
     # load_data_file(open(argv[3], "r"), cov_data)
 
-    stderr.write("parsing coverage features\n")
+    stderr.write("parsing composition features\n")
     comp_data = composition.Data()
     load_data_file(open(argv[3], "r"), comp_data)
 
