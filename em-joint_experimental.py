@@ -40,15 +40,12 @@ if __name__ == "__main__":
 
     # data = UniversalData([cov_data, comp_data])
     data = UniversalData([cov_data, comp_data])
-    # data = UniversalData([comp_data])
 
     # construct inital (hard) responsibilities
     responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create a random model
-    # model = UniversalModel([coverage.empty_model(c, cov_data.num_features), composition.empty_model(c, comp_data.num_features)])
     model = UniversalModel(sharpness, [coverage.empty_model(c, cov_data.num_features), composition.empty_model(c, comp_data.num_features)])
-    # model = UniversalModel(sharpness, [composition.empty_model(c, comp_data.num_features)])
 
     # EM clustering
     priors = flat_priors(model.components)  # uniform (flat) priors
