@@ -1,3 +1,7 @@
+# Python binary
 __pycache__/
 *.py[cod]
 *$py.class
+
+# transient backup
+*.bak
