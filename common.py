@@ -28,7 +28,7 @@ class UniversalData(list):  # TODO: rename GenericData
     def deposit(self, features):
         # self.names.append(name)
         for d, f in zip(self, features):
-            print(d, f)
+            # print(d, f)
             d.deposit(f)
 
     def prepare(self):
@@ -479,27 +479,27 @@ def uniq(iterable, key=None):
                 yield element
 
 
-def print_probmatrix(mat, out=stdout):
+def print_probmatrix(mat, file=stdout):
     for row in np.asarray(mat):
-        out.write("\t".join(["%.2f" % i for i in row]))
-        out.write("\n")
+        file.write("\t".join(["%.2f" % i for i in row]))
+        file.write("\n")
 
 
-def print_probvector(vec, out=stdout):
-    out.write("|".join(("%.2f" % f for f in vec)))
-    out.write("\n")
+def print_probvector(vec, file=stdout):
+    file.write("|".join(("%.2f" % f for f in vec)))
+    file.write("\n")
 
 
-def print_vector(vec, out=stdout):
-    out.write("|".join(("%s" % i for i in vec)))
-    out.write("\n")
+def print_vector(vec, file=stdout):
+    file.write("|".join(("%s" % i for i in vec)))
+    file.write("\n")
 
 
-def newline(out=stdout):
-    out.write("\n")
+def newline(file=stdout):
+    file.write("\n")
 
 
-print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))
+print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))  # TODO: add proper file sink
 
 
 if __name__ == "__main__":
