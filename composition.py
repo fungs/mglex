@@ -12,6 +12,8 @@ import numpy as np
 from itertools import compress
 from sys import stderr, exit
 
+logfile = open("coverage.log", "w")
+
 
 class Data(object):
     def __init__(self):
@@ -28,10 +30,10 @@ class Data(object):
     def prepare(self):
         self.frequencies = np.vstack(self._frequencies)
         self.sizes = self.frequencies.sum(axis=1, keepdims=True)
-        print("Data frequencies")
-        common.print_vector(self.frequencies[0, :])
-        common.print_vector(self.frequencies[-1, :])
-        common.newline()
+        print("Data frequencies", file=logfile)
+        common.print_vector(self.frequencies[0, :], file=logfile)
+        common.print_vector(self.frequencies[-1, :], file=logfile)
+        common.newline(file=logfile)
         self.frequencies = self.frequencies / common.prob_type(self.sizes)  # TODO: why does /= not work?
         # print("data frequencies after normalization")
         # common.print_probvector(self.frequencies[0, :])
@@ -83,10 +85,10 @@ class Model(object):  # TODO: move names to supermodel
             self._loglikes = np.log(self.variables[:, self._fmask])
             # stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
 
-            print("Model composition for %i clusters and %i features:" % self.variables.shape)
-            common.print_probvector(self.variables[0, :])
-            common.print_probvector(self.variables[-1, :])
-            common.newline()
+            print("Model composition for %i clusters and %i features:" % self.variables.shape, file=logfile)
+            common.print_probvector(self.variables[0, :], file=logfile)
+            common.print_probvector(self.variables[-1, :], file=logfile)
+            common.newline(file=logfile)
             return dimchange
 
         stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)

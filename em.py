@@ -15,6 +15,8 @@ import common
 import numpy as np
 
 
+logfile = open("em.log", "w")
+
 def get_priors(quantities, responsibilities):
     priors = np.squeeze(np.dot(quantities, responsibilities))  # np.asarray necessary?
     priors /= priors.sum()
@@ -55,17 +57,17 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
         model, priors, dimchange = m_step(model, responsibilities, data)
 
     for i in step_counter:
-        print("Cluster priors:")
-        common.print_probvector(priors)
-        common.newline()
+        print("Cluster priors:", file=logfile)
+        common.print_probvector(priors, file=logfile)
+        common.newline(file=logfile)
 
         lloglike = loglike
         responsibilities, loglike = e_step(model, priors, data)
 
-        print("Step %i responsibility of first and last data:" % i)
-        common.print_probvector(responsibilities[0, :])
-        common.print_probvector(responsibilities[-1, :])
-        common.newline()
+        print("Step %i responsibility of first and last data:" % i, file=logfile)
+        common.print_probvector(responsibilities[0, :], file=logfile)
+        common.print_probvector(responsibilities[-1, :], file=logfile)
+        common.newline(file=logfile)
 
         if lloglike:
             diff = loglike - lloglike
@@ -101,7 +103,7 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
     return model, priors, responsibilities
 
 
-def print_clusters(responsibilities, datanames, clusternames, out=stdout):
+def print_clusters(responsibilities, datanames, clusternames, file=stdout):
     infinity = float("inf")
     if responsibilities.shape[0] > 1:
         for name, res in zip(datanames, np.asarray(responsibilities)):
@@ -111,14 +113,14 @@ def print_clusters(responsibilities, datanames, clusternames, out=stdout):
             else:
                 logdiff = infinity
                 # stderr.write("Responsibility with only 1 spike? -> %s\n" % ",".join(map(lambda f: "%.2f" % f, res)))
-            out.write("%s\t%s\t%s\t%.2f\n" % (name, clusternames[i1], clusternames[i2], logdiff))
+            file.write("%s\t%s\t%s\t%.2f\n" % (name, clusternames[i1], clusternames[i2], logdiff))
 
 
-def print_responsiblities(responsibilities, datanames, clusternames, out=stdout):
+def print_responsiblities(responsibilities, datanames, clusternames, file=stdout):
     if responsibilities.shape[0] > 1:
-        out.write("#%s\t%s\n" % ("responsibility_matrix", "\t".join(clusternames)))
+        file.write("#%s\t%s\n" % ("responsibility_matrix", "\t".join(clusternames)))
         for name, res in zip(datanames, np.asarray(responsibilities)):
-            out.write("%s\t%s\n" % (name, "\t".join(["%.4f" % f for f in res])))
+            file.write("%s\t%s\n" % (name, "\t".join(["%.4f" % f for f in res])))
 
 
 if __name__ == "__main__":

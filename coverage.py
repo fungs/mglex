@@ -13,6 +13,7 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 
 # count data type
 frequency_type = np.int32
+logfile = open("coverage.log", "w")
 
 
 class Data:

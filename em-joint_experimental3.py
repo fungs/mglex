@@ -21,7 +21,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
     # parse command line options
-    sharpness = float(argv[4])
+    sharpness = float(argv[5])
     seqnames = [line.rstrip() for line in open(argv[1], "r")]
     # print(seqnames)
 
@@ -34,12 +34,12 @@ if __name__ == "__main__":
     cov_data = coverage.Data(["j"])
     load_data_file(open(argv[3], "r"), cov_data)
 
-    # stderr.write("parsing coverage features\n")
-    # comp_data = composition.Data()
-    # load_data_file(open(argv[3], "r"), comp_data)
+    stderr.write("parsing composition features\n")
+    comp_data = composition.Data()
+    load_data_file(open(argv[4], "r"), comp_data)
 
     # data = UniversalData([cov_data, comp_data])
-    data = UniversalData([cov_data])
+    data = UniversalData([cov_data, comp_data])
     # data = UniversalData([comp_data])
 
     # construct inital (hard) responsibilities
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # create a random model
     # model = UniversalModel([coverage.empty_model(c, cov_data.num_features), composition.empty_model(c, comp_data.num_features)])
-    model = UniversalModel(sharpness, [coverage.empty_model(c, cov_data.num_features)])
+    model = UniversalModel(sharpness, [coverage.empty_model(c, cov_data.num_features), composition.empty_model(c, comp_data.num_features)])
     # model = UniversalModel(sharpness, [composition.empty_model(c, comp_data.num_features)])
 
     # EM clustering
