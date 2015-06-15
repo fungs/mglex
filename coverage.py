@@ -26,6 +26,7 @@ class Data:
         self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
         self.covsums = None
         self.sizes = None
+        self.covmeans = None
 
     def _intialize_samples(self, samples):
         for i, sample in enumerate(samples):
@@ -73,6 +74,7 @@ class Data:
     def prepare(self):
         self.covsums = np.vstack(self._covsums)
         self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, None]
+        self.covmeans = self.covsums / self.sizes
         # self.facterm = self._sum_log_fac_covs.sum(axis=1)
         # assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
         return self
@@ -96,6 +98,9 @@ class Model:
             self.params = np.array(params).T
             self._pseudocount = False
 
+        self._params_sum = None
+        self._params_log = None
+
         if initialize:
             self.update()
 
@@ -107,9 +112,11 @@ class Model:
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
-        term1 = np.dot(data.covsums, self._params_log)
+        # term1 = np.dot(data.covsums, self._params_log)  # sum of data coverage version
+        term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
         # print("term1 shape is %ix%i" % term1.shape)
-        term2 = np.dot(data.sizes, self._params_sum)
+        # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
+        term2 = self._params_sum  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
         loglike = term1 - term2  # - data.facterm  # last term is optional!
         # print >>stderr, loglike
