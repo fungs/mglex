@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 u"""
@@ -21,23 +21,28 @@ if __name__ == "__main__":
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
     # parse command line options
-    seeds = load_seeds(open(argv[1], "r"))
+    sharpness = int(argv[4])
+    seqnames = [line.rstrip() for line in open(argv[1], "r")]
+
+    seeds = seeds2indices(seqnames, load_seeds(open(argv[2], "r")))
     c = len(seeds)
 
     # load data
-    stderr.write("parsing features\n")
-    data = UniversalData([coverage.Data(argv[2:]), composition.Data()])
-    data.load(stdin)
+    stderr.write("parsing composition features\n")
+    comp_data = composition.Data()
+    load_data_file(open(argv[3], "r"), comp_data)
+    data = UniversalData([comp_data])
 
     # construct inital (hard) responsibilities
-    responsibilities = responsibilities_from_seeds(data, seeds)
+    responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create a random model
-    model = UniversalModel([coverage.random_model(c, data[0].num_features, 1, 50), composition.random_model(c, data[1].num_features)])
+    model = UniversalModel(sharpness, [composition.empty_model(c, comp_data.num_features)])
 
     # EM clustering
     priors = flat_priors(model.components)  # uniform (flat) priors
     models, priors, responsibilities = em(model, priors, data, responsibilities)
 
     # output results if clustering
-    print_clusters(responsibilities, data.names, model.names)
+    stdout.write("#%s\n" % "\t".join(model.names))
+    print_predictions(responsibilities)
