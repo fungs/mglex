@@ -52,13 +52,15 @@ class UniversalData(list):  # TODO: rename GenericData
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
     def __init__(self, sharpness, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
-        self._sharpness = sharpness
+        self._sharpness = sharpness  # TODO: move sharpness outside supermodel to EM and normalize this?
+        # self.weights = np.repeat(self._sharpness/float(len(self)), len(self))
+        self.weights = np.repeat(self._sharpness/float(len(self)), len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
 
     @property
     def names(self):
         if len(self) > 1:
             component_names = list(zip(*[m.names for m in self]))
-            return [",".join(uniq(t)) for t in component_names]
+            return [",".join(t) for t in component_names]
         return self[0].names
 
     @property
@@ -67,16 +69,41 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
 
     def log_likelihood(self, data):
         # start with equally weighted likelihoods
-        weight = self._sharpness/float(len(self))  # TODO: numpy types
-
-        loglike = weight * self[0].log_likelihood(data[0])
-        for m, d in zip(self[1:], data[1:]):
+        loglike = self.weights[0] * self[0].log_likelihood(data[0])
+        for m, d, w in zip(self[1:], data[1:], self.weights[1:]):
             m_loglike = m.log_likelihood(d)
-            loglike += weight * m_loglike
+            loglike += w * m_loglike
+
+        # test matrix arithmetics
+        # loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        # loglike2 = (self.weights * loglike_per_model).sum(axis=0, keepdims=False)
+        # print_probvector(loglike[0], stderr)
+        # print_probvector(loglike2[0], stderr)
+        # stderr.write("loglike normal: %.2f, %s | loglike array: %.2f, %s\n" % (total_likelihood(loglike), loglike.shape, total_likelihood(loglike2), loglike2.shape))
+        # assert_approx_equal(total_likelihood(loglike), total_likelihood(loglike2))
+
         return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]
+        loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+
+        # ECM variant for weight optimization
+        if len(self.weights > 1):
+            iteration = count()
+            total_ll = total_likelihood((self.weights * loglike_per_model).sum(axis=0, keepdims=False))
+            while next(iteration) < 10:
+                weights_new = (self._sharpness * random_probarray(len(self)))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
+                # print_probvector(weights_new, stderr)
+                total_ll_new = total_likelihood((weights_new * loglike_per_model).sum(axis=0, keepdims=False))
+                # stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(weights_new)))
+                if total_ll_new > total_ll:
+                    self.weights = weights_new
+                    stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(self.weights)))
+                    break
+            # print_probvector(self.weights, stderr)
+
+        # maximize the weights as well, need to return likelihood in previous function call?
         return any(tmp)
 
 
@@ -129,6 +156,11 @@ def approx_equal(v1, v2, precision):
 
 
 assert_probarray = lambda v: assert_approx_equal(v.sum(), 1.)
+
+
+def random_probarray(size):  # TODO: refine
+    tmp = np.random.rand(size)
+    return tmp/tmp.sum()
 
 
 def argmax(s, n=1):
@@ -479,11 +511,15 @@ def uniq(iterable, key=None):
                 yield element
 
 
+
 def print_probmatrix(mat, file=stdout):
     for row in np.asarray(mat):
         file.write("\t".join(["%.2f" % i for i in row]))
         file.write("\n")
 
+
+
+pretty_probvector = lambda vec: "|".join(("%.2f" % f for f in vec))
 
 def print_probvector(vec, file=stdout):
     file.write("|".join(("%.2f" % f for f in vec)))
