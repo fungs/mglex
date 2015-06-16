@@ -74,7 +74,7 @@ class Data:
 
     def prepare(self):
         self.covsums = np.vstack(self._covsums)
-        self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, None]
+        self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
         self.covmeans = self.covsums / self.sizes
         # self.facterm = self._sum_log_fac_covs.sum(axis=1)
         # assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases

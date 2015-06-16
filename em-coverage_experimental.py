@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 u"""
-This is the main program which runs the EM algorithm for compositional and coverage joint clustering.
+This is the main program which runs the EM algorithm for coverage clustering.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
