@@ -25,9 +25,11 @@ class Data:
         self._sum_log_fac_covs = []  # TODO: remove optional part
         self._intialize_samples(samples)
         self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
+        self._zero_count_vector_uint = np.zeros(len(samples), dtype=frequency_type)
         self.covsums = None
         self.sizes = None
         self.covmeans = None
+        self.facterm = None
 
     def _intialize_samples(self, samples):
         for i, sample in enumerate(samples):
@@ -40,7 +42,7 @@ class Data:
 
         length = 0  # TODO: transfer length to UniversalData object and use only average coverage
         row_covsums = self._zero_count_vector.copy()
-        # row_facsums = self._zero_count_vector_uint.copy()  # TODO. remove optional term
+        row_facsums = self._zero_count_vector_uint.copy()  # TODO. remove optional term
 
         for sample_name, sample_coverage in features:
             coverage = list(map(self.coverage_type, sample_coverage))  # TODO: use sparse numpy objects...
@@ -50,9 +52,11 @@ class Data:
                 index = self._samplename2index[sample_name]
                 row_covsums[index] = np.sum(coverage)
                 length = len(coverage)
-                # tmp = sum(map(log_fac, coverages))/length
-                # print >>stderr, tmp
-                # row_facsums[index] = tmp  # TODO: simplify or remove (one term per datum)
+                # print(max(coverage), file=stderr)
+                tmp = log_array(factorial_array(coverage))/length
+                # print(tmp.min(), file=stderr)
+                # print(tmp.max(), file=stderr)
+                row_facsums[index] = tmp.sum()  # TODO: replace by optimize code, if not removed!!!
                 assert(row_covsums[index])
             except KeyError:
                 pass
@@ -60,7 +64,7 @@ class Data:
         # if length:  # only process non-empty data
         self._covsums.append(row_covsums)
         self._seqlens.append(length)
-        # self._sum_log_fac_covs.append(row_facsums)  # TODO: simplify or remove (one term per datum)
+        self._sum_log_fac_covs.append(row_facsums)  # TODO: simplify or remove (one term per datum)
         # self.names.append(name)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -76,7 +80,7 @@ class Data:
         self.covsums = np.vstack(self._covsums)
         self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
         self.covmeans = self.covsums / self.sizes
-        # self.facterm = self._sum_log_fac_covs.sum(axis=1)
+        self.facterm = sum(self._sum_log_fac_covs)  # TODO: do not really need to calculate and store previous intermediate values
         # assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
         return self
 
@@ -119,7 +123,7 @@ class Model:
         # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = self._params_sum  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 - term2  # - data.facterm  # last term is optional!
+        loglike = term1 - term2 - data.facterm  # last term is optional!
         # print >>stderr, loglike
         return loglike
 

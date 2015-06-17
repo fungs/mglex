@@ -8,6 +8,7 @@ This file contains helper functions and types.
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import numpy as np
+import math
 from collections import Iterable
 from numpy.testing import assert_approx_equal
 from operator import itemgetter
@@ -54,7 +55,7 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         super(UniversalModel, self).__init__(*args, **kw)
         self._sharpness = sharpness  # TODO: move sharpness outside supermodel to EM and normalize this?
         # self.weights = np.repeat(self._sharpness/float(len(self)), len(self))
-        self.weights = np.repeat(self._sharpness/float(len(self)), len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
+        self.weights = flat_priors(len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
 
     @property
     def names(self):
@@ -68,39 +69,47 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         return self[0].components
 
     def log_likelihood(self, data):
+        ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        total_ll_per_model = np.asarray([total_likelihood(ll) for ll in ll_per_model])
+        ll_joint = (self._sharpness * self.weights * ll_per_model).sum(axis=0, keepdims=False)
+        total_ll_joint = total_likelihood(ll_joint)
+
+        # Determine weights as inverse of total likelihoods (so all densities contribute same overall information)
+        for ll in ll_per_model:
+            print_probvector(ll[0], file=stderr)
+        print_probvector(total_ll_per_model, file=stderr)
+        stderr.write("%i\n" % total_ll_joint)
+
+        self.weights = exp_normalize_1d(total_ll_per_model)[:, np.newaxis, np.newaxis]
+
+        stderr.write("LOG ECM #: -- | LL: %i | weights: %s\n" % (total_ll_joint, pretty_probvector(self.weights)))
+
+        return ll_joint
+
         # start with equally weighted likelihoods
-        loglike = self.weights[0] * self[0].log_likelihood(data[0])
-        for m, d, w in zip(self[1:], data[1:], self.weights[1:]):
-            m_loglike = m.log_likelihood(d)
-            loglike += w * m_loglike
-
-        # test matrix arithmetics
-        # loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
-        # loglike2 = (self.weights * loglike_per_model).sum(axis=0, keepdims=False)
-        # print_probvector(loglike[0], stderr)
-        # print_probvector(loglike2[0], stderr)
-        # stderr.write("loglike normal: %.2f, %s | loglike array: %.2f, %s\n" % (total_likelihood(loglike), loglike.shape, total_likelihood(loglike2), loglike2.shape))
-        # assert_approx_equal(total_likelihood(loglike), total_likelihood(loglike2))
-
-        return loglike
+        # loglike = self.weights[0] * self[0].log_likelihood(data[0])
+        # for m, d, w in zip(self[1:], data[1:], self.weights[1:]):
+        #     m_loglike = m.log_likelihood(d)
+        #     loglike += w * m_loglike
+        # return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
-        tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]
-        loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]  # TODO: needs to know weights?
+        # loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
 
         # ECM variant for weight optimization
-        if len(self.weights > 1):
-            iteration = count()
-            total_ll = total_likelihood((self.weights * loglike_per_model).sum(axis=0, keepdims=False))
-            while next(iteration) < 10:
-                weights_new = (self._sharpness * random_probarray(len(self)))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
-                # print_probvector(weights_new, stderr)
-                total_ll_new = total_likelihood((weights_new * loglike_per_model).sum(axis=0, keepdims=False))
+        # if len(self.weights > 1):
+        #     iteration = count()
+        #     total_ll = total_likelihood((self.weights * loglike_per_model).sum(axis=0, keepdims=False))
+        #     while next(iteration) < 10:
+        #         weights_new = (self._sharpness * random_probarray(len(self)))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
+        #         print_probvector(weights_new, stderr)
+                # total_ll_new = total_likelihood((self._sharpness * weights_new * loglike_per_model).sum(axis=0, keepdims=False))
                 # stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(weights_new)))
-                if total_ll_new > total_ll:
-                    self.weights = weights_new
-                    stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(self.weights)))
-                    break
+                # if total_ll_new > total_ll:
+                #     self.weights = weights_new
+                #     stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(self.weights)))
+                #     break
             # print_probvector(self.weights, stderr)
 
         # maximize the weights as well, need to return likelihood in previous function call?
@@ -537,6 +546,15 @@ def newline(file=stdout):
 
 print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))  # TODO: add proper file sink
 
+
+# debug function
+def factorial_array(vec):
+    return np.asarray([np.math.factorial(i) for i in vec])
+
+
+# debug function
+def log_array(vec):
+    return np.asarray([math.log(i) for i in vec], dtype=float)
 
 if __name__ == "__main__":
     pass
