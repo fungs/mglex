@@ -21,7 +21,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
     # parse command line options
-    sharpness = int(argv[4])
+    weight = float(argv[4])
     seqnames = [line.rstrip() for line in open(argv[1], "r")]
 
     seeds = seeds2indices(seqnames, load_seeds(open(argv[2], "r")))
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create a random model
-    model = UniversalModel(sharpness, [coverage.empty_model(c, cov_data.num_features)])
+    model = UniversalModel([weight], [coverage.empty_model(c, cov_data.num_features)])
 
     # EM clustering
     priors = flat_priors(model.components)  # uniform (flat) priors

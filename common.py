@@ -51,11 +51,12 @@ class UniversalData(list):  # TODO: rename GenericData
 
 
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
-    def __init__(self, sharpness, *args, **kw):
+    def __init__(self, weights, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
-        self._sharpness = sharpness  # TODO: move sharpness outside supermodel to EM and normalize this?
+        # self._sharpness = sharpness  # TODO: move sharpness outside supermodel to EM and normalize this?
+        self.weights = np.asarray(weights)[:, np.newaxis, np.newaxis]
         # self.weights = np.repeat(self._sharpness/float(len(self)), len(self))
-        self.weights = flat_priors(len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
+        # self.weights = flat_priors(len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
 
     @property
     def names(self):
@@ -70,21 +71,23 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
 
     def log_likelihood(self, data):
         ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
-        total_ll_per_model = np.asarray([total_likelihood(ll) for ll in ll_per_model])
-        ll_joint = (self._sharpness * self.weights * ll_per_model).sum(axis=0, keepdims=False)
-        total_ll_joint = total_likelihood(ll_joint)
+        # total_ll_per_model = np.asarray([total_likelihood(ll) for ll in ll_per_model])
+        # ll_joint = (self._sharpness * self.weights * ll_per_model).sum(axis=0, keepdims=False)
+        # total_ll_joint = total_likelihood(ll_joint)
 
-        # Determine weights as inverse of total likelihoods (so all densities contribute same overall information)
-        for ll in ll_per_model:
-            print_probvector(ll[0], file=stderr)
-        print_probvector(total_ll_per_model, file=stderr)
-        stderr.write("%i\n" % total_ll_joint)
+        # determine likelihood by joint posterior of data given clusters
+        # normalized_ll_per_model = np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model])
 
-        self.weights = exp_normalize_1d(total_ll_per_model)[:, np.newaxis, np.newaxis]
+        # Determine weights
+        # for ll in ll_per_model:
+        #     print_probvector(ll[0], file=stderr)
+        # print_probvector(total_ll_per_model, file=stderr)
+        # stderr.write("%i\n" % total_ll_joint)
+        # self.weights = exp_normalize_1d(total_ll_per_model)[:, np.newaxis, np.newaxis]
+        # stderr.write("LOG ECM #: -- | LL: %i | weights: %s\n" % (total_ll_joint, pretty_probvector(self.weights)))
 
-        stderr.write("LOG ECM #: -- | LL: %i | weights: %s\n" % (total_ll_joint, pretty_probvector(self.weights)))
-
-        return ll_joint
+        return (self.weights * ll_per_model).sum(axis=0, keepdims=False)
+        # return ll_joint
 
         # start with equally weighted likelihoods
         # loglike = self.weights[0] * self[0].log_likelihood(data[0])
@@ -95,22 +98,24 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]  # TODO: needs to know weights?
-        # loglike_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        # ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
 
-        # ECM variant for weight optimization
+        # TODO: assert that total likelihood calculation is consistent
+
+        # # ECM variant for weight optimization
         # if len(self.weights > 1):
         #     iteration = count()
-        #     total_ll = total_likelihood((self.weights * loglike_per_model).sum(axis=0, keepdims=False))
+        #     total_joint = total_likelihood(self._sharpness * np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model]).sum(axis=0, keepdims=False))
         #     while next(iteration) < 10:
-        #         weights_new = (self._sharpness * random_probarray(len(self)))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
-        #         print_probvector(weights_new, stderr)
-                # total_ll_new = total_likelihood((self._sharpness * weights_new * loglike_per_model).sum(axis=0, keepdims=False))
-                # stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(weights_new)))
-                # if total_ll_new > total_ll:
-                #     self.weights = weights_new
-                #     stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_ll_new, total_ll_new - total_ll, pretty_probvector(self.weights)))
-                #     break
-            # print_probvector(self.weights, stderr)
+        #         weights_new = random_probarray(len(self))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
+        #         # print_probvector(weights_new, stderr)
+        #         total_joint_new = total_likelihood(self._sharpness * np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model]).sum(axis=0, keepdims=False))
+        #         # stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_joint_new, total_joint_new - total_joint, pretty_probvector(weights_new)))
+        #         if total_joint_new > total_joint:
+        #             self.weights = weights_new
+        #             stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_joint_new, total_joint_new - total_joint, pretty_probvector(self.weights)))
+        #             break
+        #     # print_probvector(self.weights, stderr)
 
         # maximize the weights as well, need to return likelihood in previous function call?
         return any(tmp)

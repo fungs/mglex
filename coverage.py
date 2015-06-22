@@ -52,20 +52,17 @@ class Data:
                 index = self._samplename2index[sample_name]
                 row_covsums[index] = np.sum(coverage)
                 length = len(coverage)
-                # print(max(coverage), file=stderr)
                 tmp = log_array(factorial_array(coverage))/length
-                # print(tmp.min(), file=stderr)
-                # print(tmp.max(), file=stderr)
                 row_facsums[index] = tmp.sum()  # TODO: replace by optimize code, if not removed!!!
                 assert(row_covsums[index])
             except KeyError:
                 pass
                 # stderr.write("Feature with sample name \"%s\" ignored.\n" % sample)
+
         # if length:  # only process non-empty data
         self._covsums.append(row_covsums)
         self._seqlens.append(length)
         self._sum_log_fac_covs.append(row_facsums)  # TODO: simplify or remove (one term per datum)
-        # self.names.append(name)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
         for entry in inseq:
@@ -81,7 +78,7 @@ class Data:
         self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
         self.covmeans = self.covsums / self.sizes
         self.facterm = sum(self._sum_log_fac_covs)  # TODO: do not really need to calculate and store previous intermediate values
-        # assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
+        assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
         return self
 
     @property
@@ -123,7 +120,8 @@ class Model:
         # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = self._params_sum  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 - term2 - data.facterm  # last term is optional!
+        loglike = term1 - term2
+        loglike = loglike - data.facterm  # optional if only scaled likelihood is needed
         # print >>stderr, loglike
         return loglike
 
