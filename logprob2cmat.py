@@ -13,11 +13,20 @@ import numpy as np
 from common import print_probmatrix
 
 if __name__ == "__main__":
+    try:
+        filename = sys.argv[2]
+        if filename == "-":
+            filein2 = sys.stdin
+        else:
+            filein2 = open(sys.argv[2], "r")
+    except IndexError:
+        filein2 = sys.stdin
+
     cmat = None
     # iteration = count(0)
     title = None
 
-    for line1, line2 in zip(open(sys.argv[1], "r"), open(sys.argv[2], "r")):
+    for line1, line2 in zip(open(sys.argv[1], "r"), filein2):
 
         empty = (not line1, not line2)
 
