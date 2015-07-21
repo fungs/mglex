@@ -3,7 +3,10 @@
 u"""
 Takes a label matrix one-zero entries and probability class assignments and calculates an evaluation statistic
 S = log((1/C) * \sum_i=1_C (1/|C_i|*(|C_i|-1)) * \sum_{d_1, d_2 \element C_i, d_1 != d_2} p(d_1|C_i)*p(d_2|C_i))
-The expected log-probability that any two linked contigs (prior knowledge) are grouped together in a cluster.
+The expected (log-)probability that any two linked contigs (prior knowledge) are grouped together in a cluster.
+
+This measure can be generalized to pairs of sequences which should _not_ belong together in a cluster (between)
+and for fuzzy label distributions.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
@@ -11,7 +14,7 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 import sys
 import numpy as np
 from itertools import permutations
-from common import print_probmatrix, print_probvector
+from common import print_probmatrix, print_probvector, pretty_probvector
 
 
 if __name__ == "__main__":
@@ -45,7 +48,12 @@ if __name__ == "__main__":
             sys.exit(2)
 
         fields = line1.rstrip().split("\t")
-        labelvec = np.asarray(fields, dtype=float)
+        try:
+            labelvec = np.asarray(fields, dtype=float)
+        except ValueError:  # TODO: better handling
+            sys.stderr.write("Cannot parse line: %s" % line1)
+            sys.exit(1)
+ 
         assert(sum(labelvec == float("Inf")) == (labelvec.size - 1))
         labelindex = np.nonzero(labelvec == 0.)[0][0]  # only one index can be one by definition
         #assert(labelvec.sum() == 1.)
@@ -70,9 +78,9 @@ if __name__ == "__main__":
     # print_probmatrix(prob_together_pergroup)
     #expected_prob_overall = np.dot(group_size_normalized, prob_together_pergroup)
 
-    expected_probs_per_group = []
+    expected_probs_per_group = np.zeros(len(predictions_per_labelgroup))
 
-    for rows in predictions_per_labelgroup.values():
+    for i, rows in enumerate(predictions_per_labelgroup.values()):
         #sys.stdout.write("new label group\n")
         mat = np.vstack(rows)
         group_probs = []
@@ -83,7 +91,9 @@ if __name__ == "__main__":
 #            print_probvector(v2)
 #        print_probmatrix(mat)
 #        print_probvector(group_probs)
-        meanprob = np.mean(group_probs)
-        expected_probs_per_group.append(meanprob)
+        mprob = np.mean(group_probs)
+        expected_probs_per_group[i] = mprob
 #        sys.stdout.write("mean group probability is %.6f\n" % meanprob) 
-    sys.stdout.write("%.2f\n" % np.mean(expected_probs_per_group))
+    mean_prob_overall = np.mean(expected_probs_per_group)
+    squared_loss_overall = (expected_probs_per_group**2).sum()
+    sys.stdout.write("%.2f\t%.2f\t%s\n" % (mean_prob_overall, squared_loss_overall, pretty_probvector(expected_probs_per_group)))
