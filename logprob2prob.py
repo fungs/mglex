@@ -8,8 +8,11 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import sys
 import numpy as np
+import signal
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
+
     for line in sys.stdin:
         if not line or line[0] == "#":
             continue
