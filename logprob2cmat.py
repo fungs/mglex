@@ -9,8 +9,14 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import sys
 import numpy as np
-# from itertools import count
+from itertools import repeat
 from common import print_probmatrix
+
+
+# simple dummy weight function counting each sequences as one
+class oneweight:
+    __getitem__ = lambda self, key: 1
+
 
 if __name__ == "__main__":
     try:
@@ -22,11 +28,17 @@ if __name__ == "__main__":
     except IndexError:
         filein2 = sys.stdin
 
+    try:
+        weightfilename = sys.argv[3]
+        weights = (int(line.rstrip()) for line in open(weightfilename, "r"))
+    except:
+        weights = repeat(1)
+
     cmat = None
     # iteration = count(0)
     title = None
 
-    for line1, line2 in zip(open(sys.argv[1], "r"), filein2):
+    for line1, line2, weight in zip(open(sys.argv[1], "r"), filein2, weights):
 
         empty = (not line1, not line2)
 
@@ -52,7 +64,7 @@ if __name__ == "__main__":
         fields = line2.rstrip().split("\t")
         predictionvec = np.exp(-np.asarray(fields, dtype=float))[np.newaxis, :]  # row vector
 
-        partial_confusion = np.dot(labelvec, predictionvec)
+        partial_confusion = np.dot(labelvec, predictionvec)*weight
 
         try:
             cmat += partial_confusion
@@ -64,7 +76,7 @@ if __name__ == "__main__":
 
     # write confusion matrix to output
     try:
-        title = sys.argv[3]
+        title = sys.argv[4]
     except IndexError:
         title = "generic confusion matrix"
 
