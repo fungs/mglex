@@ -17,7 +17,7 @@ logfile = open("coverage.log", "w")
 
 
 class Data:
-    def __init__(self, samples):
+    def __init__(self, samples):  # TODO: use deque() for large append-only lists
         self.samples = []
         self._samplename2index = {}
         self._covsums = []
