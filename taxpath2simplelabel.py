@@ -14,38 +14,14 @@ u"""
  1.2.3:100
 
  where the original data might have been
- taxpath: Baceria;Firmicutes;Bacillales
- weight: 100
+  taxpath: Baceria;Firmicutes;Bacillales
+  weight: 100
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from collections import defaultdict
-from itertools import count
+from common import InternalTreeIndex
 import sys
-
-convert_generator_functor = lambda gen: lambda: next(gen)
-
-
-class LabelIndex:
-    def __init__(self):
-        self.store = defaultdict(self._context())
-
-    def __getitem__(self, itemseq):
-        current = self.store
-        path = []
-        for item in itemseq:
-            index, current = current[item]
-            path.append(index)
-        return tuple(path)
-
-    def _context(self):
-        obj = convert_generator_functor(count())
-        return lambda: self._default_value(obj)
-
-    def _default_value(self, obj):
-        return obj(), defaultdict(self._context())
-
 
 print_path = lambda path: ".".join(map(str, path))
 
@@ -63,16 +39,18 @@ def parse_sequence_taxpath_file(inputlines):
 
 if __name__ == "__main__":
     import fileinput
+    import signal
     from docopt import docopt
 
     arguments = docopt(__doc__)
 
-    tree_internal = LabelIndex()
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
     # convert each line on-the-fly
+    tree = InternalTreeIndex()
     for taxpath, weight in parse_sequence_taxpath_file(fileinput.input()):
         if taxpath:
-            path = tree_internal[taxpath]
+            path = tree[taxpath]
             sys.stdout.write("%s:%s\n" % (print_path(path), weight))
         else:
             sys.stdout.write("\n")
