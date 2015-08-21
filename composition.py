@@ -17,7 +17,7 @@ logfile = open("coverage.log", "w")
 
 class Data(object):
     def __init__(self):
-        self._frequencies = []
+        self._frequencies = []  # TODO: use deque() for large append-only lists
         self.sizes = None
         self.frequencies = None
 
