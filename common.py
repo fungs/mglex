@@ -9,11 +9,11 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import numpy as np
 import math
-from collections import Iterable
 from numpy.testing import assert_approx_equal
+from scipy.special import binom
 from operator import itemgetter
 from itertools import count, filterfalse
-import unittest
+from collections import defaultdict, deque
 from sys import stderr, stdout
 
 
@@ -503,8 +503,6 @@ def plot_clusters_igraph(responsibilities, color_groups):
     l = g.layout_mds(dist=squareform(Y))
     plot(g, layout=l, vertex_color=colors, bbox=(1024, 1024), vertex_size=5)
 
-from itertools import filterfalse
-
 
 # c&p from stackexchange
 def uniq(iterable, key=None):
@@ -560,6 +558,179 @@ def factorial_array(vec):
 # debug function
 def log_array(vec):
     return np.asarray([math.log(i) for i in vec], dtype=float)
+
+
+binom_array = binom
+
+
+class InternalTreeIndex:
+    def __init__(self):
+        self._store = defaultdict(self._context())
+
+    def __getitem__(self, itemseq):
+        current = self._store
+        for item in itemseq:
+            index, current = current[item]
+            yield index
+
+    def _context(self):
+        obj = self._convert_generator_functor(count())
+        return lambda: self._default_value(obj)
+
+    def _default_value(self, obj):
+        return obj(), defaultdict(self._context())
+
+    def items(self):  # iterate breadth-first
+        stack = deque([(tuple(), tuple(), self._store)])
+        while stack:
+            prefix_ext, prefix_int, store = stack.popleft()
+            for node_ext, value in store.items():
+                node_int, store_next = value
+                path_ext = prefix_ext + (node_ext,)
+                path_int = prefix_int + (node_int,)
+                if store_next:
+                    stack.append((path_ext, path_int, store_next))
+                yield path_ext, path_int
+
+    def keys(self):  # iterate breadth-first
+        stack = deque([(tuple(), self._store)])
+        while stack:
+            prefix_ext, store = stack.popleft()
+            for node_ext, value in store.items():
+                store_next = value[1]
+                path_ext = prefix_ext + (node_ext,)
+                if store_next:
+                    stack.append((path_ext, store_next))
+                yield path_ext
+
+    def values(self):  # iterate breadth-first
+        stack = deque([(tuple(), self._store)])
+        while stack:
+            prefix_int, store = stack.popleft()[1:]
+            for node_int, store_next in store.values():
+                path_int = prefix_int + (node_int,)
+                if store_next:
+                    stack.append((path_int, store_next))
+                yield path_int
+
+    _convert_generator_functor = staticmethod(lambda gen: lambda: next(gen))
+
+
+class NestedCountIndex:  # TODO: implement using NestedDict
+    def __init__(self):
+        fn = lambda: defaultdict(fn)
+        self._store = fn()
+        self._size = 0
+
+    def __getitem__(self, itemseq):
+        current = self._store
+        for item in itemseq:
+            current = current[item]
+        ret = current.get(self._defaultkey)
+        if ret is None:
+            ret = self._size
+            current[self._defaultkey] = ret
+            self._size += 1
+        return ret
+
+    def __len__(self):
+        return self._size
+
+    def items(self):  # iterate breadth-first
+        stack = deque([(tuple(), self._store)])
+        while stack:
+            prefix, store = stack.popleft()
+            for node, val in store.items():
+                if node is self._defaultkey:
+                    yield prefix, val
+                elif val:
+                    stack.append((prefix + (node,), val))
+
+    def keys(self):  # iterate breadth-first
+        for path, val in self.items():
+            yield path
+
+    def values(self):  # iterate breadth-first
+        stack = deque([self._store])
+        while stack:
+            store = stack.popleft()
+            for node, val in store.items():
+                if node is self._defaultkey:
+                    yield val
+                elif val:
+                    stack.append(val)
+
+    _defaultkey = None
+
+
+class NestedDict:
+    def __init__(self):
+        fn = lambda: defaultdict(fn)
+        self._store = fn()
+
+    def __getitem__(self, itemseq):
+        current = self._store
+        for item in itemseq:
+            current = current[item]
+        ret = current.get(self._defaultkey)
+        if ret is not None:
+            return ret
+        raise KeyError
+
+    def __setitem__(self, itemseq, value):
+        current = self._store
+        for item in itemseq:
+            current = current[item]
+        current[self._defaultkey] = value
+
+    def items(self):  # iterate breadth-first
+        stack = deque([(tuple(), self._store)])
+        while stack:
+            prefix, store = stack.popleft()
+            for node, val in store.items():
+                if node is self._defaultkey:
+                    yield prefix, val
+                elif val:
+                    stack.append((prefix + (node,), val))
+
+    def keys(self):  # iterate breadth-first
+        for path, val in self.items():
+            yield path
+
+    def values(self):  # iterate breadth-first
+        stack = deque([self._store])
+        while stack:
+            store = stack.popleft()
+            for node, val in store.items():
+                if node is self._defaultkey:
+                    yield val
+                elif val:
+                    stack.append(val)
+
+    _defaultkey = None
+
+
+class DefaultList(list):
+    """A list class with default values designed for rare index misses (otherwise, don't use exceptions)"""
+    def __init__(self, fx):
+        self._fx = fx
+
+    def __setitem__(self, index, value):
+        try:
+            list.__setitem__(self, index, value)
+        except IndexError:
+            while len(self) < index:
+                self.append(self._fx())
+            self.append(value)
+
+    def __getitem__(self, index):
+        try:
+            list.__getitem__(self, index)
+        except IndexError:
+            while len(self) <= index:
+                self.append(self._fx())
+            return list.__getitem__(self, index)
+
 
 if __name__ == "__main__":
     pass
