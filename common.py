@@ -12,7 +12,7 @@ import math
 from numpy.testing import assert_approx_equal
 from scipy.special import binom
 from operator import itemgetter
-from itertools import count, filterfalse
+from itertools import count, filterfalse, chain
 from collections import defaultdict, deque
 from sys import stderr, stdout
 
@@ -22,9 +22,12 @@ prob_type = np.float16
 
 
 class UniversalData(list):  # TODO: rename GenericData
-    def __init__(self, *args, **kw):
-        super(UniversalData, self).__init__(*args, **kw)
-        # self.names = []
+    def __init__(self, *args, sizes: "1d NumPy array", **kwargs):
+        super(UniversalData, self).__init__(*args, **kwargs)
+        try:
+            self.sizes = np.asarray(sizes, dtype=self.size_type)
+        except TypeError:
+            self.sizes = np.fromiter(sizes, dtype=self.size_type)
 
     def deposit(self, features):
         # self.names.append(name)
@@ -33,21 +36,34 @@ class UniversalData(list):  # TODO: rename GenericData
             d.deposit(f)
 
     def prepare(self):
-        return [d.prepare() for d in self]  # TODO: return self without conversion to list by map
+        for d in self:
+            d.prepare()
+        return self
+        #return [d.prepare() for d in self]  # TODO: return self without conversion to list by map
 
-    @property
-    def sizes(self):  # transitional
-        return self[0].sizes
+    # @property
+    # def sizes(self):  # transitional
+    #     return self[0].sizes
+    #     return self[0].sizes
 
     @property
     def num_data(self):
-        if len(self):
-            # print >>stderr, map(len, self)
-            num = len(self[0])
-            for l in self[1:]:
-                assert(len(l) == num)
-            return num
-        return 0
+        if not super(UniversalData, self).__len__():
+            return 0
+
+        # print >>stderr, map(len, self)
+        num = len(self[0])
+        for l in self[1:]:
+            assert(len(l) == num)
+        return num
+
+    @property
+    def num_features(self):
+        return super(UniversalData, self).__len__()
+
+    __len__ = num_data   # TODO: select an intuitive convention for this
+
+    size_type = np.uint32
 
 
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
@@ -97,7 +113,7 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         # return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
-        tmp = [m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data)]  # TODO: needs to know weights?
+        tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?
         # ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
 
         # TODO: assert that total likelihood calculation is consistent
@@ -148,8 +164,8 @@ def parse_lines(lines):
 
 #load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
 
-def load_data_file(fh, store):
-    store.parse(parse_lines(fh))
+load_data = lambda lines, store: store.parse(parse_lines(lines))
+load_data_file = load_data  # transitional alias
 
 
 def assert_probmatrix(mat):
@@ -245,24 +261,26 @@ def log_fac(i):
 def seeds2indices(seqnames, seeds):
     # a) build a dictionary for the seeds for fast lookup
     name2cluster = {}
+    cluster_count = 0
     for i, names in enumerate(seeds):
         for n in names:
             name2cluster[n] = i
+        cluster_count += 1
 
-    seed_indices = [[] for i in range(len(seeds))]
+    seed_indices = [set() for i in range(cluster_count)]
 
     # b) determine indices of seeds
     for i, name in enumerate(seqnames):
         cluster_index = name2cluster.get(name, None)
         if cluster_index is not None:
-            seed_indices[cluster_index].append(i)
+            seed_indices[cluster_index].add(i)
     return seed_indices
 
 
 def responsibilities_from_seeds(seed_indices, num_data):
     responsibilities = np.zeros((num_data, len(seed_indices)), dtype=prob_type)
     for i, s in enumerate(seed_indices):
-        responsibilities[s, i] = 1.
+        responsibilities[list(s), i] = 1.  # TODO: index with numpy array instead of list?
     return responsibilities
 
 
@@ -294,12 +312,15 @@ def responsibilities_from_seeds(seed_indices, num_data):
 
 
 def load_seeds(iterable):
-    seeds = []
     for line in iterable:
-        if line and line[0] == "#":
+        if line and line[0] == "#":  # TODO: factorize
             continue
-        seeds.append(line.rstrip().split(" "))
-    return seeds
+        yield line.rstrip().split(" ")
+
+load_data_sizes = lambda lines: (int(line.rstrip()) for line in lines)
+
+load_seqnames = lambda lines: (line.rstrip() for line in lines)
+
 
 
 colors_dict = {
@@ -636,29 +657,51 @@ class NestedCountIndex:  # TODO: implement using NestedDict
     def __len__(self):
         return self._size
 
-    def items(self):  # iterate breadth-first
-        stack = deque([(tuple(), self._store)])
-        while stack:
-            prefix, store = stack.popleft()
-            for node, val in store.items():
-                if node is self._defaultkey:
-                    yield prefix, val
-                elif val:
-                    stack.append((prefix + (node,), val))
-
     def keys(self):  # iterate breadth-first
         for path, val in self.items():
             yield path
 
-    def values(self):  # iterate breadth-first
-        stack = deque([self._store])
-        while stack:
-            store = stack.popleft()
+    def _values_partial(self, queue):  # iterate breadth-first
+        new = queue.popleft()
+        while new is not None:  # invariant: level end
+            store = new
             for node, val in store.items():
                 if node is self._defaultkey:
                     yield val
                 elif val:
-                    stack.append(val)
+                    queue.append(val)
+            new = queue.popleft()
+        raise StopIteration
+
+    def values_nested(self):
+        queue = deque([self._store])
+        while queue:
+            queue.append(None)  # invariant: level end
+            yield self._values_partial(queue)
+
+    def values(self):  # iterate breadth-first
+        return chain.from_iterable(self.values_nested())
+
+    def _items_partial(self, queue):  # iterate breadth-first
+        new = queue.popleft()
+        while new is not None:  # invariant: level end
+            prefix, store = new
+            for node, val in store.items():
+                if node is self._defaultkey:
+                    yield prefix, val
+                elif val:
+                    queue.append((prefix + (node,), val))
+            new = queue.popleft()
+        raise StopIteration
+
+    def items_nested(self):
+        queue = deque([(tuple(), self._store)])
+        while queue:
+            queue.append(None)  # invariant: level end
+            yield self._items_partial(queue)
+
+    def items(self):  # iterate breadth-first
+        return chain.from_iterable(self.items_nested())
 
     _defaultkey = None
 
