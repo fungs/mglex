@@ -51,8 +51,10 @@ class Data(object):
     def num_features(self):
         return self.frequencies.shape[1]
 
-    def __len__(self):
+    def num_data(self):
         return self.frequencies.shape[0]
+
+    __len__ = num_data  # TODO: select an intuitive convention for this
 
     composition_type = np.uint32
 
