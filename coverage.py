@@ -85,8 +85,11 @@ class Data:
     def num_features(self):
         return self.covsums.shape[1]
 
-    def __len__(self):
+    @property
+    def num_data(self):
         return self.covsums.shape[0]
+
+    __len__ = num_data  # TODO: select an intuitive convention for this
 
     coverage_type = np.uint32
 
