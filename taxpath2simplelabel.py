@@ -30,9 +30,11 @@ def parse_sequence_taxpath_file(inputlines):
     for line in inputlines:
         if line and line[0] == "#":
             continue
-        taxpath, weight = line.rstrip().split("\t", 2)[:2]
-        if taxpath:
-            yield taxpath.split(";"), weight
+        taxpathstr, weight = line.rstrip().split("\t", 2)[:2]
+        if taxpathstr:
+            taxpath = taxpathstr.split(";")
+            assert all(taxpath)  # do not allow empty fields! This introduces ambiguity but labels must be unique
+            yield taxpath, weight
         else:
             yield (), weight
 
