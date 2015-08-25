@@ -27,7 +27,7 @@ def get_priors(quantities, responsibilities):
 def e_step(models, priors, data):
     common.assert_probarray(priors)
     loglike = models.log_likelihood(data)
-    loglike = loglike + np.log(priors)  # TODO: why doesn't += work?
+    loglike = loglike + np.log(priors)  # TODO: why doesn't += work?; TODO: use the prior to give an advantage to large clusters? (Bayesian)
     return common.exp_normalize(loglike), common.total_likelihood(loglike)
 
 
