@@ -55,51 +55,54 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
 
     if responsibilities is not None:  # TODO: check correctness
         model, priors, dimchange = m_step(model, responsibilities, data)
+    try:
+        for i in step_counter:
+            print("Cluster priors:", file=logfile)
+            common.print_probvector(priors, file=logfile)
+            common.newline(file=logfile)
 
-    for i in step_counter:
-        print("Cluster priors:", file=logfile)
-        common.print_probvector(priors, file=logfile)
-        common.newline(file=logfile)
+            lloglike = loglike
+            responsibilities, loglike = e_step(model, priors, data)
 
-        lloglike = loglike
-        responsibilities, loglike = e_step(model, priors, data)
+            print("Step %i responsibility of first and last data:" % i, file=logfile)
+            common.print_probvector(responsibilities[0, :], file=logfile)
+            common.print_probvector(responsibilities[-1, :], file=logfile)
+            common.newline(file=logfile)
 
-        print("Step %i responsibility of first and last data:" % i, file=logfile)
-        common.print_probvector(responsibilities[0, :], file=logfile)
-        common.print_probvector(responsibilities[-1, :], file=logfile)
-        common.newline(file=logfile)
-
-        if lloglike:
-            diff = loglike - lloglike
-            if diff >= 0.:
-                delta_color = "red"
+            if lloglike:
+                diff = loglike - lloglike
+                if diff >= 0.:
+                    delta_color = "red"
+                else:
+                    delta_color = "blue"
+                stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (
+                    i, colored("%i" % loglike, "yellow").rjust(padlen_ll),
+                    colored("%.2f" % diff, delta_color).rjust(padlen_delta),
+                    colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
+                diffsum += diff
             else:
-                delta_color = "blue"
-            stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (
-                i, colored("%i" % loglike, "yellow").rjust(padlen_ll),
-                colored("%.2f" % diff, delta_color).rjust(padlen_delta),
-                colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
-            diffsum += diff
-        else:
-            loglike_str = "%i" % loglike
-            cclen = len(loglike_str)
-            loglike_str = colored(loglike_str, "yellow")
-            cclen = len(loglike_str) - cclen
-            padlen_ll = len(loglike_str)
-            padlen_delta = padlen_ll + 3
-            stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (i, loglike_str, "".rjust(padlen_delta - cclen),
-                colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
+                loglike_str = "%i" % loglike
+                cclen = len(loglike_str)
+                loglike_str = colored(loglike_str, "yellow")
+                cclen = len(loglike_str) - cclen
+                padlen_ll = len(loglike_str)
+                padlen_delta = padlen_ll + 3
+                stderr.write("LOG EM #: %3i | LL: %s | Δ: %s | mix: %s\n" % (i, loglike_str, "".rjust(padlen_delta - cclen),
+                    colored(" ".join(["%2.2f" % f for f in sorted(priors, reverse=True)]), "green")))
 
-        model, priors, dimchange = m_step(model, responsibilities, data)
+            model, priors, dimchange = m_step(model, responsibilities, data)
 
-        if common.approx_equal(diff, .0, precision=10**-3):
-            delta_counter += 1
-        else:
-            delta_counter = 0
+            if common.approx_equal(diff, .0, precision=10**-3):
+                delta_counter += 1
+            else:
+                delta_counter = 0
 
-        if i == maxiter or priors.size == 1 or delta_counter >= 10:
-            # print >>stderr, maxiter, priors.size, delta_counter
-            break
+            if i == maxiter or priors.size == 1 or delta_counter >= 10:
+                # print >>stderr, maxiter, priors.size, delta_counter
+                break
+    except KeyboardInterrupt:
+        stderr.write("Optimization interrupted by user, returning the current state\n")
+
     return model, priors, responsibilities
 
 
