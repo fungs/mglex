@@ -147,7 +147,7 @@ class Model:
         return self.update()
 
     @property
-    def components(self):
+    def num_components(self):
         return self.params.shape[1]
 
     @property
