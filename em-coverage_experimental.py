@@ -41,7 +41,7 @@ if __name__ == "__main__":
     model = UniversalModel([weight], [coverage.empty_model(c, cov_data.num_features)])
 
     # EM clustering
-    priors = flat_priors(model.components)  # uniform (flat) priors
+    priors = flat_priors(model.num_components)  # uniform (flat) priors
     models, priors, responsibilities = em(model, priors, data, responsibilities)
 
     # output results if clustering
