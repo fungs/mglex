@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 u"""
-The types and methods for describing the distribution of label-type data.
+ The types and methods for describing the distribution of label-type data. We use a modified Naive Bayesian Model
+ which  considers hierarchical labels using a weighting scheme. However, the weighting of the individual labels
+ is handled externally which leaves much freedom for shaping the actual PMF. Weights could for instance be set by
+ consideration phylogenetic distances.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
@@ -76,18 +79,23 @@ class Data:  # TODO: use deque() for large append-only lists
         # print(self.levelindex)
         return self
 
-    def __len__(self):
+    @property
+    def num_data(self):
         return len(self.labels)
+
+    def __len__(self):
+        return self.num_data
 
 
 class Model:
 
     support_type = np.float32  # TODO: check range
 
-    def __init__(self, params, levelindex, initialize=True):
+    def __init__(self, params, levelindex, initialize=True, pseudocount=True):
         self.params = np.array(params, dtype=self.support_type)  # TODO: use large unsigned integer first, then cut down
         self._levelindex = np.asarray(levelindex, dtype=label_index_type)
         self.levelsum = np.empty(params.shape, dtype=self.support_type)
+        self._pseudocount = pseudocount
 
         if initialize:
             self.update()
@@ -104,17 +112,24 @@ class Model:
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check
-        loglike = np.empty((len(data), self.components), dtype=logtype)
+        loglike = np.empty((len(data), self.num_components), dtype=logtype)
         for i, (indexcol, supportcol) in enumerate(data.labels):  # TODO: vectorize 3d?
 
             if not indexcol.size:  # no label == no observation == perfect fit
                 loglike[i] = 0
                 continue
 
-            numerator = np.dot(supportcol, self.params[indexcol])
             denominator = np.dot(supportcol, self.levelsum[indexcol])
+            assert np.all(denominator != 0.0)
+            numerator = np.dot(supportcol, self.params[indexcol])
 
-            assert denominator.all()
+
+            # if not np.all(numerator != 0.):
+            #     print(pretty_probvector(numerator), file=stderr)
+            #     print(pretty_probvector(denominator), file=stderr)
+            #     print(pretty_probvector(indexcol), file=stderr)
+            #     print(pretty_probvector(supportcol), file=stderr)
+
             # if not denominator.all():  # TODO: turn back into assertion
             #     print("datum: %i\n  numerator: %s /\n denominator %s" % (i, numerator, denominator), file=stderr)
             #     print(indexcol)
@@ -123,11 +138,18 @@ class Model:
             #     print(denominator)
             #     exit(1)
 
-            ll = np.log(numerator/denominator)  # TODO: or log - log
+            #print(pretty_probvector(numerator),file=stderr)
+            #print(pretty_probvector(denominator), file=stderr)
 
+            if self._pseudocount:
+                probs = (numerator+1)/(denominator+1)
+            else:
+                probs = numerator/denominator
+
+            ll = np.log(probs)  # TODO: or log - log
             assert (ll <= 0.).all()
-
             loglike[i] = ll
+
         return loglike
 
     def get_labels(self, indices=None):
@@ -159,7 +181,7 @@ class Model:
         return self.update()
 
     @property
-    def components(self):
+    def num_components(self):
         return self.params.shape[1]
 
     @property
