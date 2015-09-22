@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-# This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
+ This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
+ We use a Binomial density to model the coverage per position which also handles low count values.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
@@ -19,6 +20,7 @@ logfile = open("coverage.log", "w")
 
 class Data:
     def __init__(self, samples):  # TODO: use deque() for large append-only lists
+        assert len(samples) > 1
         self.samples = []
         self._samplename2index = {}
         self._covsums = []
@@ -27,6 +29,7 @@ class Data:
         self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
         self._zero_count_vector_uint = np.zeros(len(samples), dtype=frequency_type)
         self._conterm = np.zeros(len(samples), dtype=logtype)
+        self._samples_ignored = set()
         self.covsums = None
         self.sizes = None
         self.covmeans = None
@@ -49,41 +52,37 @@ class Data:
         indexorder = []
 
         for sample_name, sample_coverage in features:
-            coverage = np.array(sample_coverage, dtype=self.coverage_type)  # TODO: use sparse numpy objects...
- #           print(coverage, file=stderr)
-            # feature_list.append((sample_name, coverage))
+            if sample_name in self._samples_ignored:
+                continue
             try:
                 index = self._samplename2index[sample_name]
-                row_covsums[index] = np.sum(coverage)
-                length = coverage.size
-                assert(row_covsums[index])
             except KeyError:
-                pass
-                # stderr.write("Feature with sample name \"%s\" ignored.\n" % sample)
+                stderr.write("Features for sample \"%s\" ignored.\n" % sample_name)
+                self._samples_ignored.add(sample_name)
+                continue
 
             # constant term part can be removed when not used, it takes initialization time but no time for other operations
+            coverage = np.array(sample_coverage, dtype=self.coverage_type)  # TODO: use sparse numpy objects...
+            row_covsums[index] = np.sum(coverage)
+            length = coverage.size
+            assert(row_covsums[index])  # TODO: what does this mean? what about zero coverage in repliate?
             indexorder.append(index)
-            try:  # bad style, do typesafe operations instead
+
+            try:  # TODO: bad style, do typesafe operations instead; how to best grow the row matrix
                 covmat = np.vstack((covmat, coverage))
             except ValueError:
                 covmat = np.array([coverage])
-            
-#            print(covmat, file=stderr)
-           
 
- 
-        covsums_positional = covmat.sum(axis=0)
+        assert indexorder  # empty data not allowed, must have some coverage in some sample
 
-#        print(covmat.shape, file=stderr)
+        covsums_positional = covmat.sum(axis=0)  # TODO: add up instead of array creation; finally remove all
 
         for i, row in zip(indexorder, covmat):
-#            print(row, file=stderr)
-#            bvec = binom_array(covsums_positional, row)
-#            print(bvec, file=stderr)
             self._conterm[i] += np.sum(log_array(binom_array(covsums_positional, row)))
-        # if length:  # only process non-empty data
+
         self._covsums.append(row_covsums)
         self._seqlens.append(length)
+
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
         for entry in inseq:
@@ -111,7 +110,8 @@ class Data:
     def num_data(self):
         return self.covsums.shape[0]
 
-    __len__ = num_data  # TODO: select an intuitive convention for this
+    def __len__(self):
+        return self.num_data  # TODO: select an intuitive convention for this
 
     coverage_type = np.uint32
 
@@ -138,7 +138,8 @@ class Model:
         # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 + term2 #+ data.conterm  # constant term is not necessary for EM
+        loglike = term1 + term2 #+ data.conterm  # constant term is not necessary for EM TODO: fix conterm (need values per sample), should not be needed at all
+        #loglike = loglike * (self.num_components-1)/self.num_components  # TODO: renormalization for  dependent dimension is a constant, should not be needed
         # print >>stderr, loglike
         return loglike
 
@@ -163,7 +164,7 @@ class Model:
         return self.update()
 
     @property
-    def components(self):
+    def num_components(self):
         return self.params.shape[1]
 
     @property
@@ -174,7 +175,7 @@ class Model:
     # def features_used(self):
         # return sum(self._fmask)
 
-    _short_name = "NB_model"
+    _short_name = "BI_model"
 
 
 def load_model(instream):

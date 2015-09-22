@@ -51,10 +51,12 @@ class Data(object):
     def num_features(self):
         return self.frequencies.shape[1]
 
+    @property
     def num_data(self):
         return self.frequencies.shape[0]
 
-    __len__ = num_data  # TODO: select an intuitive convention for this
+    def __len__(self):
+        return self.num_data  # TODO: select an intuitive convention for this
 
     composition_type = np.uint32
 
@@ -136,7 +138,7 @@ class Model(object):  # TODO: move names to supermodel
         return self.update()
 
     @property
-    def components(self):
+    def num_components(self):
         assert self.names is not None
         return len(self.names)
 
