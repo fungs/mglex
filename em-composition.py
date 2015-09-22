@@ -35,7 +35,7 @@ if __name__ == "__main__":
     models = UniversalModel([composition.random_model(c, single_data.num_features)])
 
     # EM clustering
-    priors = flat_priors(models.components)  # uniform (flat) priors
+    priors = flat_priors(models.num_components)  # uniform (flat) priors
     #models, priors, responsibilities = em(models, priors, data)
     models, priors, responsibilities = em(models, priors, data, responsibilities)
 

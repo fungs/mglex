@@ -34,7 +34,7 @@ if __name__ == "__main__":
     models = UniversalModel([coverage.random_model(c, single_data.num_features, 1, 50)])
 
     # EM clustering
-    priors = flat_priors(models.components)  # uniform (flat) priors
+    priors = flat_priors(models.num_components)  # uniform (flat) priors
     models, priors, responsibilities = em(models, priors, data, responsibilities)
 
     # output results if clustering
