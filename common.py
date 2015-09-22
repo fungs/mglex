@@ -51,17 +51,19 @@ class UniversalData(list):  # TODO: rename GenericData
         if not super(UniversalData, self).__len__():
             return 0
 
-        # print >>stderr, map(len, self)
-        num = len(self[0])
+        # print(self, file=stderr)
+        num = self[0].num_data
+        assert num == len(self[0])
         for l in self[1:]:
-            assert(len(l) == num)
+            assert(l.num_data == num)
         return num
 
     @property
     def num_features(self):
         return super(UniversalData, self).__len__()
 
-    __len__ = num_data   # TODO: select an intuitive convention for this
+    def __len__(self):
+        return self.num_data   # TODO: select an intuitive convention for this
 
     size_type = np.uint32
 
@@ -82,11 +84,23 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         return self[0].names
 
     @property
-    def components(self):  # transitional
-        return self[0].components
+    def num_components(self):  # transitional
+        if not len(self):
+            return 0
+        cluster_num = self[0].num_components
+        assert np.all(np.equal(cluster_num, [model.num_components for model in self[1:]]))
+        return cluster_num
 
     def log_likelihood(self, data):
+        assert self.weights.size == len(self)
+
         ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        #print(ll_per_model.shape, file=stderr)
+        s = np.mean(np.exp(ll_per_model), axis=1)
+        l = np.sum(ll_per_model, axis=1)
+        #print(s.shape, file=stderr)
+        for m, mvec, lvec in zip(self, s, l):
+            print(m._short_name, "***", pretty_probvector(mvec), "***", pretty_probvector(lvec), file=stderr)
         # total_ll_per_model = np.asarray([total_likelihood(ll) for ll in ll_per_model])
         # ll_joint = (self._sharpness * self.weights * ll_per_model).sum(axis=0, keepdims=False)
         # total_ll_joint = total_likelihood(ll_joint)
@@ -553,6 +567,7 @@ def print_probmatrix(mat, file=stdout):
 
 
 pretty_probvector = lambda vec: "|".join(("%.2f" % f for f in vec))
+pretty_probmatrix = lambda mat: "\n".join((pretty_probvector(row) for row in mat))
 
 def print_probvector(vec, file=stdout):
     file.write("|".join(("%.2f" % f for f in vec)))
