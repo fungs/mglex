@@ -147,7 +147,6 @@ class Model:
                 probs = numerator/denominator
 
             ll = np.log(probs)  # TODO: or log - log
-            assert (ll <= 0.).all()
             loglike[i] = ll
 
         assert np.all(loglike <= .0)
