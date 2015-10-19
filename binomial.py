@@ -25,6 +25,7 @@ class Data:
         self._samplename2index = {}
         self._covsums = []
         self._seqlens = []
+        self._conterms = []
         self._intialize_samples(samples)
         self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
         self._zero_count_vector_uint = np.zeros(len(samples), dtype=frequency_type)
@@ -33,7 +34,7 @@ class Data:
         self.covsums = None
         self.sizes = None
         self.covmeans = None
-        self.conterm = None
+        self.conterms = None
         self.covmeanstotal = None
 
     def _intialize_samples(self, samples):
@@ -65,7 +66,7 @@ class Data:
             coverage = np.array(sample_coverage, dtype=self.coverage_type)  # TODO: use sparse numpy objects...
             row_covsums[index] = np.sum(coverage)
             length = coverage.size
-            assert(row_covsums[index])  # TODO: what does this mean? what about zero coverage in repliate?
+            assert(row_covsums[index])  # TODO: what does this mean? what about zero coverage in replicate?
             indexorder.append(index)
 
             try:  # TODO: bad style, do typesafe operations instead; how to best grow the row matrix
@@ -77,11 +78,15 @@ class Data:
 
         covsums_positional = covmat.sum(axis=0)  # TODO: add up instead of array creation; finally remove all
 
+        constant_term = 0.0
         for i, row in zip(indexorder, covmat):
-            self._conterm[i] += np.sum(log_array(binom_array(covsums_positional, row)))
+            binomials = binom_array(covsums_positional, row)
+            #print(pretty_probvector(binomials[:20]), file=stderr)
+            constant_term += np.mean(log_array(binomials))  # TODO: simple sum instead of each sample
 
         self._covsums.append(row_covsums)
         self._seqlens.append(length)
+        self._conterms.append(constant_term)
 
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -94,11 +99,14 @@ class Data:
         return self.prepare()
 
     def prepare(self):
-        self.covsums = np.vstack(self._covsums)
+        self.covsums = np.vstack(self._covsums)  # TODO: remove
+        self._covsums = None  # TODO: make Pyton release the memory
         self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
+        self._seqlens = None  # TODO: make Pyton release the memory
         self.covmeans = self.covsums / self.sizes
         self.covmeanstotal = self.covsums.sum(axis=1, keepdims=True) / self.sizes
-        self.conterm = self._conterm  # TODO: do not really need to calculate
+        self.conterms = np.array(self._conterms, dtype=prob_type)[:, np.newaxis]  # TODO: do not really need to calculate
+        self._conterms = None  # TODO: make Pyton release the memory
         assert(np.all(self.covmeanstotal > 0))  # zero observation in all samples might be possible TODO: check cases, optimize code
         return self
 
@@ -138,10 +146,10 @@ class Model:
         # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 + term2 #+ data.conterm  # constant term is not necessary for EM TODO: fix conterm (need values per sample), should not be needed at all
+        loglike = term1 + term2 + data.conterms  # constant term is not necessary for EM TODO: fix conterm (need values per datum), should not be needed at all
         #loglike = loglike * (self.num_components-1)/self.num_components  # TODO: renormalization for  dependent dimension is a constant, should not be needed
         # print >>stderr, loglike
-        return loglike
+        return loglike  # TODO: normalize by number of samples?
 
     def get_labels(self, indices=None):
         if not indices:
@@ -213,5 +221,4 @@ def empty_model(component_number, feature_number):  # TODO: make generic
 def random_model(component_number, feature_number):  # TODO: make generic
     params = np.random.rand(component_number, feature_number)
     params /= params.sum(axis=1, keepdims=True)
-    return Model(params)   
-
+    return Model(params)
