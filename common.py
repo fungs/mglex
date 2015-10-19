@@ -41,11 +41,6 @@ class UniversalData(list):  # TODO: rename GenericData
         return self
         #return [d.prepare() for d in self]  # TODO: return self without conversion to list by map
 
-    # @property
-    # def sizes(self):  # transitional
-    #     return self[0].sizes
-    #     return self[0].sizes
-
     @property
     def num_data(self):
         if not super(UniversalData, self).__len__():
