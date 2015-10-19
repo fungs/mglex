@@ -94,7 +94,7 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
     def log_likelihood(self, data):
         assert self.weights.size == len(self)
 
-        ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
+        ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])  # TODO: reduce memory usage
         #print(ll_per_model.shape, file=stderr)
         s = np.mean(np.exp(ll_per_model), axis=1)
         l = np.sum(ll_per_model, axis=1)
