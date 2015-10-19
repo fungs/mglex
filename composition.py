@@ -113,8 +113,11 @@ class Model(object):  # TODO: move names to supermodel
         if self._pseudocount:
             stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
             exit(1)
-            return np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
-        return np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
+            loglike = np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
+        else:
+            loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
+        assert np.all(loglike < .0)
+        return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         if cmask is not None:

@@ -149,6 +149,7 @@ class Model:
         loglike = term1 + term2 + data.conterms  # constant term is not necessary for EM TODO: fix conterm (need values per datum), should not be needed at all
         #loglike = loglike * (self.num_components-1)/self.num_components  # TODO: renormalization for  dependent dimension is a constant, should not be needed
         # print >>stderr, loglike
+        assert np.all(loglike < .0)
         return loglike  # TODO: normalize by number of samples?
 
     def get_labels(self, indices=None):
