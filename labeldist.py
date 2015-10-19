@@ -150,6 +150,7 @@ class Model:
             assert (ll <= 0.).all()
             loglike[i] = ll
 
+        assert np.all(loglike <= .0)
         return loglike
 
     def get_labels(self, indices=None):

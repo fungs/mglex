@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     # load data
     stderr.write("parsing coverage features\n")
-    replicate_samples = ("0-0", "1-0") #, "0-2", "0-3")
+    replicate_samples = ("0-0", "1-0") #, "3-0") #, "0-3")
     cov_data = binomial.Data(replicate_samples)
     load_data_file(open(argv[4], "r"), cov_data)
 
