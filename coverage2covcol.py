@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 u"""
-Read coverage file format and ouput samples as columns and positions as rows. There will be one file per input row and
+Read coverage file format and output samples as columns and positions as rows. There will be one file per input row and
 the output files are named after the sequence identifier.
 """
 

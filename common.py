@@ -19,15 +19,16 @@ from sys import stderr, stdout
 
 # common data types
 prob_type = np.float16
+size_type = np.uint32
 
 
 class UniversalData(list):  # TODO: rename GenericData
-    def __init__(self, *args, sizes: "1d NumPy array", **kwargs):
+    def __init__(self, *args, sizes: "column NumPy array or iterator", **kwargs):
         super(UniversalData, self).__init__(*args, **kwargs)
         try:
             self.sizes = np.asarray(sizes, dtype=self.size_type)
         except TypeError:
-            self.sizes = np.fromiter(sizes, dtype=self.size_type)
+            self.sizes = np.fromiter(sizes, dtype=self.size_type)[:, np.newaxis]
 
     def deposit(self, features):
         # self.names.append(name)
@@ -60,7 +61,7 @@ class UniversalData(list):  # TODO: rename GenericData
     def __len__(self):
         return self.num_data   # TODO: select an intuitive convention for this
 
-    size_type = np.uint32
+    size_type = size_type
 
 
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()

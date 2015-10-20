@@ -23,14 +23,13 @@ if __name__ == "__main__":
     # parse command line options
     weight = float(argv[5])
     seqnames = load_seqnames(open(argv[1], "r"))
-    data_size = load_data_sizes(open(argv[2], "r"))
+    data_size = np.fromiter(load_data_sizes(open(argv[2], "r")), dtype=size_type)[:, np.newaxis]
     seeds = seeds2indices(seqnames, load_seeds(open(argv[3], "r")))
     c = len(seeds)
 
     # load data
     stderr.write("parsing coverage features\n")
-    replicate_samples = ("0-0", "1-0") #, "2-0", "3-0")
-    cov_data = binomial.Data(replicate_samples) #, "2-0", "3-0"])
+    cov_data = binomial.Data(sizes=data_size)
     load_data_file(open(argv[4], "r"), cov_data)
 
     data = UniversalData([cov_data], sizes=data_size)

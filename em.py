@@ -17,8 +17,8 @@ import numpy as np
 
 logfile = open("em.log", "w")
 
-def get_priors(quantities, responsibilities):
-    priors = np.squeeze(np.dot(quantities, responsibilities))  # np.asarray necessary?
+def get_priors(quantities, responsibilities): # two 1d column arrays
+    priors = np.squeeze(np.dot(quantities.T, responsibilities))  # np.asarray necessary?
     priors /= priors.sum()
     common.assert_probarray(priors)  # TODO: remove
     return priors
@@ -34,7 +34,7 @@ def e_step(models, priors, data):
 def m_step(model, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
                                              # priors or responsibilities? -> sequence length in data? -> consistent?
     # assert_probmatrix(responsibilities)
-    priors = get_priors(data.sizes.T, responsibilities)  # TODO: check correctness
+    priors = get_priors(data.sizes, responsibilities)  # TODO: check correctness
     cmask = np.asarray(priors, dtype=bool)  # determine empty clusters
     if np.any(np.logical_not(cmask)):
         stderr.write("LOG M: The following clusters are removed: %s\n"

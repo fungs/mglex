@@ -20,11 +20,10 @@ if __name__ == "__main__":
         if not line or line[0] == "#":  # skip empty lines and comments
             continue
 
-        seqname, coverage_field = line.rstrip().split("\t", 2)[:2]
         sample2coverage = {}
-        for sample_group in coverage_field.split(" "):
+        for sample_group in line.rstrip().split(" "):
             sample_name, coverage = sample_group.split(":", 2)[:2]
             coverage = map(int, coverage.split(","))  # TODO: use sparse numpy objects...
             sample2coverage[sample_name] = coverage
         
-        stdout.write("%s\t%s\n" % (seqname,"-".join([ "%i" % round(mean(sample2coverage.get(s,.0))) for s in samples ])))
+        stdout.write("%s\n" % (" ".join(["%.2f" % mean(sample2coverage.get(s, .0)) for s in samples])))
