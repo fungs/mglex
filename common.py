@@ -556,17 +556,17 @@ def uniq(iterable, key=None):
 
 
 def print_probmatrix(mat, file=stdout):
-    for row in np.round(np.asarray(mat), decimals=2):
+    for row in np.asarray(mat):
         file.write("\t".join(["%.2f" % i for i in row]))
         file.write("\n")
 
 
 
-pretty_probvector = lambda vec: "|".join(("%.2f" % f for f in np.round(vec, decimals=2)))
-pretty_probmatrix = lambda mat: "\n".join((pretty_probvector(row) for row in np.round(mat, decimals=2)))
+pretty_probvector = lambda vec: "|".join(("%.2f" % f for f in vec))
+pretty_probmatrix = lambda mat: "\n".join((pretty_probvector(row) for row in mat))
 
 def print_probvector(vec, file=stdout):
-    file.write("|".join(("%.2f" % f for f in np.round(vec, decimals=2))))
+    file.write("|".join(("%.2f" % f for f in vec)))
     file.write("\n")
 
 
