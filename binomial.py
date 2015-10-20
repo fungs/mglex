@@ -19,109 +19,39 @@ logfile = open("coverage.log", "w")
 
 
 class Data:
-    def __init__(self, samples):  # TODO: use deque() for large append-only lists
-        assert len(samples) > 1
-        self.samples = []
-        self._samplename2index = {}
-        self._covsums = []
-        self._seqlens = []
-        self._conterms = []
-        self._intialize_samples(samples)
-        self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
-        self._zero_count_vector_uint = np.zeros(len(samples), dtype=frequency_type)
-        self._conterm = np.zeros(len(samples), dtype=logtype)
-        self._samples_ignored = set()
-        self.covsums = None
-        self.sizes = None
+    def __init__(self, sizes):
+        self._covmeans = []  # TODO: use deque() for large append-only lists
         self.covmeans = None
-        self.conterms = None
         self.covmeanstotal = None
-
-    def _intialize_samples(self, samples):
-        for i, sample in enumerate(samples):
-                self._samplename2index[sample] = i
-                self.samples.append(sample)
+        self.sizes = sizes
 
     def deposit(self, features):  # TODO: improve data parsing and handling
-        if not features:
-            print("empty coverage features set deposit!", file=stderr)
-
-        length = 0  # TODO: transfer length to UniversalData object and use only average coverage
-        row_covsums = self._zero_count_vector.copy()
-        # row_facsums = self._zero_count_vector_uint.copy()  # TODO. remove optional term
-        covmat = None
-        indexorder = []
-
-        for sample_name, sample_coverage in features:
-            if sample_name in self._samples_ignored:
-                continue
-            try:
-                index = self._samplename2index[sample_name]
-            except KeyError:
-                stderr.write("Features for sample \"%s\" ignored.\n" % sample_name)
-                self._samples_ignored.add(sample_name)
-                continue
-
-            # constant term part can be removed when not used, it takes initialization time but no time for other operations
-            coverage = np.array(sample_coverage, dtype=self.coverage_type)  # TODO: use sparse numpy objects...
-            row_covsums[index] = np.sum(coverage)
-            length = coverage.size
-            assert(row_covsums[index])  # TODO: what does this mean? what about zero coverage in replicate?
-            indexorder.append(index)
-
-            try:  # TODO: bad style, do typesafe operations instead; how to best grow the row matrix
-                covmat = np.vstack((covmat, coverage))
-            except ValueError:
-                covmat = np.array([coverage])
-
-        assert indexorder  # empty data not allowed, must have some coverage in some sample
-
-        covsums_positional = covmat.sum(axis=0)  # TODO: add up instead of array creation; finally remove all
-
-        constant_term = 0.0
-        for i, row in zip(indexorder, covmat):
-            binomials = binom_array(covsums_positional, row)
-            #print(pretty_probvector(binomials[:20]), file=stderr)
-            constant_term += np.mean(log_array(binomials))  # TODO: simple sum instead of each sample
-
-        self._covsums.append(row_covsums)
-        self._seqlens.append(length)
-        self._conterms.append(constant_term)
-
+        coverage = np.array(features, dtype=self.mean_coverage_type)
+        self._covmeans.append(coverage)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
-        for entry in inseq:
-            feature_list = []
-            for sample_group in entry.split(" "):
-                sample_name, sample_coverage = sample_group.split(":", 2)[:2]
-                feature_list.append((sample_name, sample_coverage.split(",")))
-            self.deposit(feature_list)
+        for entry in inseq:  # space-separated list of sample mean coverage
+            self.deposit(entry.split(" "))
         return self.prepare()
 
     def prepare(self):
-        self.covsums = np.vstack(self._covsums)  # TODO: remove
-        self._covsums = None  # TODO: make Pyton release the memory
-        self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
-        self._seqlens = None  # TODO: make Pyton release the memory
-        self.covmeans = self.covsums / self.sizes
-        self.covmeanstotal = self.covsums.sum(axis=1, keepdims=True) / self.sizes
-        self.conterms = np.array(self._conterms, dtype=prob_type)[:, np.newaxis]  # TODO: do not really need to calculate
-        self._conterms = None  # TODO: make Pyton release the memory
-        assert(np.all(self.covmeanstotal > 0))  # zero observation in all samples might be possible TODO: check cases, optimize code
+        self.covmeans = np.vstack(self._covmeans)
+        self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
+        assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
         return self
 
     @property
     def num_features(self):
-        return self.covsums.shape[1]
+        return self.covmeans.shape[1]
 
     @property
     def num_data(self):
-        return self.covsums.shape[0]
+        return self.covmeans.shape[0]
 
     def __len__(self):
         return self.num_data  # TODO: select an intuitive convention for this
 
-    coverage_type = np.uint32
+    mean_coverage_type = np.float32
 
 
 class Model:
@@ -142,15 +72,10 @@ class Model:
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
         term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
-        # print("term1 shape is %ix%i" % term1.shape)
-        # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
-        # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 + term2 + data.conterms  # constant term is not necessary for EM TODO: fix conterm (need values per datum), should not be needed at all
-        #loglike = loglike * (self.num_components-1)/self.num_components  # TODO: renormalization for  dependent dimension is a constant, should not be needed
-        # print >>stderr, loglike
+        loglike = term1 + term2
         assert np.all(loglike < .0)
-        return loglike  # TODO: normalize by number of samples?
+        return loglike
 
     def get_labels(self, indices=None):
         if not indices:
@@ -160,16 +85,14 @@ class Model:
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
         if cmask is None or cmask.shape == () or np.all(cmask):
-            weights = responsibilities*data.sizes
+            weights = responsibilities * data.sizes
         else:
-            # print >>stderr, "shape of responsibilities vector:", responsibilities.shape
             weights = responsibilities[:, cmask] * data.sizes
 
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)
 
         self.params = weighted_meancoverage_samples / weighted_meancoverage_total
-#        print_probmatrix(self.params, stderr)
         return self.update()
 
     @property
@@ -180,38 +103,8 @@ class Model:
     def names(self):
         return list(self.get_labels())
 
-    # @property
-    # def features_used(self):
-        # return sum(self._fmask)
-
     _short_name = "BI_model"
 
-
-def load_model(instream):
-    all_clists = []
-    # samples = input.next().rstrip().split("\t")
-    for line in instream:
-        if not line or line[0] == "#":
-            continue
-        clist = line.rstrip().split("\t")
-        if clist:
-            all_clists.append(list(map(int, clist)))
-    return Model(all_clists)
-
-
-def load_data(input, samples):  # TODO: add load_data from generic with data-specific parse_line function
-    store = Data(samples)
-    for line in input:
-        if not line or line[0] == "#":  # skip empty lines and comments
-            continue
-        seqname, coverage_field = line.rstrip().split("\t", 2)[:2]
-        feature_list = []
-        for sample_group in coverage_field.split(" "):
-            sample_name, coverage = sample_group.split(":", 2)[:2]
-            coverage = list(map(int, coverage.split(",")))  # TODO: use sparse numpy objects...
-            feature_list.append((sample_name, coverage))
-        store.deposit(seqname, feature_list)
-    return store.prepare()
 
 
 def empty_model(component_number, feature_number):  # TODO: make generic
