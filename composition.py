@@ -80,14 +80,13 @@ class Model(object):  # TODO: move names to supermodel
 
         # reduction of model complexity
         if not self._pseudocount:
-            common.assert_probmatrix(self.variables)
             fmask_old = self._fmask
             self._fmask = np.asarray(self.variables, dtype=bool).all(axis=0)
-            if fmask_old is not None and np.any(fmask_old != self._fmask):
+            if fmask_old is not None and np.any(fmask_old != self._fmask):  # TODO: consider dimchange when fmask_old==None
                 dimchange = True
-                stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
+                #stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
             self._loglikes = np.log(self.variables[:, self._fmask])
-            # stderr.write("LOG %s: using %i features\n" % (self._short_name, self._fmask.sum()))
+            stderr.write("LOG %s: using %i out of %i features\n" % (self._short_name, self._fmask.sum(), self.variables.shape[1]))
 
             print("Model composition for %i clusters and %i features:" % self.variables.shape, file=logfile)
             common.print_probvector(self.variables[0, :], file=logfile)
@@ -109,7 +108,7 @@ class Model(object):  # TODO: move names to supermodel
 
     def log_likelihood(self, data):
         # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
-        assert data.num_features == self._loglikes.shape[1]
+        assert data.num_features == self.variables.shape[1]
         if self._pseudocount:
             stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
             exit(1)
@@ -121,14 +120,15 @@ class Model(object):  # TODO: move names to supermodel
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         if cmask is not None:
-            self.variables = np.dot(responsibilities[:, cmask].T, data.frequencies)
+            responsibilities_reduced = responsibilities[:, cmask]
+            self.variables = np.dot(responsibilities_reduced.T, data.frequencies)
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
+            self.variables = self.variables / responsibilities_reduced.sum(axis=0, keepdims=True).T  # normalize before update
         else:
             common.assert_probmatrix(data.frequencies)  # TODO: remove
             common.assert_probmatrix(responsibilities)  # TODO: remove
             self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
-
-        self.variables = self.variables / responsibilities.sum(axis=0, keepdims=True).T  # normalize before update
+            self.variables = self.variables / responsibilities.sum(axis=0, keepdims=True).T  # normalize before update
 
         # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
         # common.print_probvector(self.variables.sum(axis=1))
