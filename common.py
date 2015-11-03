@@ -65,12 +65,9 @@ class UniversalData(list):  # TODO: rename GenericData
 
 
 class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
-    def __init__(self, weights, *args, **kw):
+    def __init__(self, baselength, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
-        # self._sharpness = sharpness  # TODO: move sharpness outside supermodel to EM and normalize this?
-        self.weights = np.asarray(weights)[:, np.newaxis, np.newaxis]
-        # self.weights = np.repeat(self._sharpness/float(len(self)), len(self))
-        # self.weights = flat_priors(len(self))[:, np.newaxis, np.newaxis]  # TODO: decide explicit likelihood type?
+        self.baselength = float(baselength)
 
     @property
     def names(self):
@@ -88,39 +85,17 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         return cluster_num
 
     def log_likelihood(self, data):
-        assert self.weights.size == len(self)
+        #assert self.weights.size == len(self)
 
         ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])  # TODO: reduce memory usage
-        #print(ll_per_model.shape, file=stderr)
-        s = np.mean(np.exp(ll_per_model), axis=1)
-        l = np.sum(ll_per_model, axis=1)
-        #print(s.shape, file=stderr)
-        for m, mvec, lvec in zip(self, s, l):
+        s = np.mean(np.exp(ll_per_model), axis=1)  # TODO: remove debug calculations
+        l = np.sum(ll_per_model, axis=1)  # TODO: remove debug calculations
+        for m, mvec, lvec in zip(self, s, l):  # TODO: save memory
             print(m._short_name, "***", pretty_probvector(mvec), "***", pretty_probvector(lvec), file=stderr)
-        # total_ll_per_model = np.asarray([total_likelihood(ll) for ll in ll_per_model])
-        # ll_joint = (self._sharpness * self.weights * ll_per_model).sum(axis=0, keepdims=False)
-        # total_ll_joint = total_likelihood(ll_joint)
 
-        # determine likelihood by joint posterior of data given clusters
-        # normalized_ll_per_model = np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model])
+        loglike = (np.log(data.sizes)/np.log(self.baselength)) * ll_per_model.sum(axis=0, keepdims=False)
+        return loglike
 
-        # Determine weights
-        # for ll in ll_per_model:
-        #     print_probvector(ll[0], file=stderr)
-        # print_probvector(total_ll_per_model, file=stderr)
-        # stderr.write("%i\n" % total_ll_joint)
-        # self.weights = exp_normalize_1d(total_ll_per_model)[:, np.newaxis, np.newaxis]
-        # stderr.write("LOG ECM #: -- | LL: %i | weights: %s\n" % (total_ll_joint, pretty_probvector(self.weights)))
-
-        return (self.weights * ll_per_model).sum(axis=0, keepdims=False)
-        # return ll_joint
-
-        # start with equally weighted likelihoods
-        # loglike = self.weights[0] * self[0].log_likelihood(data[0])
-        # for m, d, w in zip(self[1:], data[1:], self.weights[1:]):
-        #     m_loglike = m.log_likelihood(d)
-        #     loglike += w * m_loglike
-        # return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?

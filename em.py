@@ -24,10 +24,12 @@ def get_priors(quantities, responsibilities): # two 1d column arrays
     return priors
 
 
-def e_step(models, priors, data):
+def e_step(models, priors, data, sharpfactor):
     common.assert_probarray(priors)
     loglike = models.log_likelihood(data)
     loglike = loglike + np.log(priors)  # TODO: why doesn't += work?; TODO: use the prior to give an advantage to large clusters? (Bayesian)
+    if sharpfactor != 1.0:
+        loglike = sharpfactor*loglike  # TODO: exclude prior? use *= operator?
     return common.exp_normalize(loglike), common.total_likelihood(loglike)
 
 
@@ -43,7 +45,7 @@ def m_step(model, responsibilities, data):  # TODO: weighting of data points in 
     return model, priors[cmask], dimchange
 
 
-def em(model, priors, data, responsibilities=None, maxiter=None):
+def em(model, priors, data, responsibilities=None, sharpfactor=1.0, maxiter=None):
     step_counter = count(1)
     dimchange = False
     loglike = None
@@ -62,7 +64,7 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
             common.newline(file=logfile)
 
             lloglike = loglike
-            responsibilities, loglike = e_step(model, priors, data)
+            responsibilities, loglike = e_step(model, priors, data, sharpfactor)
 
             print("Step %i responsibility of first and last data:" % i, file=logfile)
             common.print_probvector(responsibilities[0, :], file=logfile)
@@ -102,6 +104,9 @@ def em(model, priors, data, responsibilities=None, maxiter=None):
                 break
     except KeyboardInterrupt:
         stderr.write("Optimization interrupted by user, returning the current state\n")
+
+    # recalc model responsibilities without the sharpening
+    responsibilities = common.exp_normalize(model.log_likelihood(data) + np.log(priors))  # TODO: is this the best way?
 
     return model, priors, responsibilities
 
