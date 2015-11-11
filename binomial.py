@@ -72,9 +72,12 @@ class Model:
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
         term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
+        assert np.all(~np.isnan(term1))
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
+        assert np.all(~np.isnan(term2))
         loglike = term1 + term2
-        assert np.all(loglike < .0)
+        print_probmatrix(loglike, file=logfile)
+        assert np.all(loglike <= .0)
         return loglike
 
     def get_labels(self, indices=None):
@@ -92,7 +95,7 @@ class Model:
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)
 
-        self.params = weighted_meancoverage_samples / weighted_meancoverage_total
+        self.params = (weighted_meancoverage_samples + 0.5) / (weighted_meancoverage_total + 0.5)  # introduced pseudocounts
         return self.update()
 
     @property
