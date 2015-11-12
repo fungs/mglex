@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+
+u"""
+This is the main program which takes a model and some data and returns the corresponding likelihoods.
+
+Usage:
+  classify-likelihood [options]  (--length <argument>) [--diffcoverage <argument>] [--composition <argument>] [--labeling <argument>]
+
+  -h, --help                        Show this screen.
+  -v, --version                     Show version.
+  -l <file>, --length <file>        Sequence lengths file
+  -d <file>, --diffcoverage <file>  Differential coverage data file for Binomial Model
+  -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
+  -t <file>, --labeling <file>      (Taxonomic) label-type data file for Hierarchical Naive Bayes Model
+  -m <file>, --model <file>         Model file for classificaton
+
+"""
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+
+from common import *
+import composition
+import binomial
+from em import *
+from sys import exit, stderr, argv
+
+if __name__ == "__main__":
+  from docopt import docopt
+  opt = docopt(__doc__, argv)
+  print(opt)
