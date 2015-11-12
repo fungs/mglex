@@ -21,7 +21,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
     # parse command line options
-    weight = float(argv[5])
+    sharp = float(argv[5])
     seqnames = load_seqnames(open(argv[1], "r"))
     data_size = np.fromiter(load_data_sizes(open(argv[2], "r")), dtype=size_type)[:, np.newaxis]
     seeds = seeds2indices(seqnames, load_seeds(open(argv[3], "r")))
@@ -38,11 +38,12 @@ if __name__ == "__main__":
     responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create a random model
-    model = UniversalModel([weight], [binomial.empty_model(c, cov_data.num_features)])
+    model = UniversalModel(100,
+                           [binomial.empty_model(c, cov_data.num_features)])
 
     # EM clustering
     priors = flat_priors(model.num_components)  # uniform (flat) priors
-    models, priors, responsibilities = em(model, priors, data, responsibilities)
+    models, priors, responsibilities = em(model, priors, data, responsibilities, sharp)
 
     # output results if clustering
     stdout.write("#%s\n" % "\t".join(model.names))

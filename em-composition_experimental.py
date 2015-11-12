@@ -25,7 +25,7 @@ if __name__ == "__main__":
     data_size = load_data_sizes(open(argv[2], "r"))
     seeds = seeds2indices(seqnames, load_seeds(open(argv[3], "r")))
     c = len(seeds)
-    weight = float(argv[5])
+    sharp = float(argv[5])
 
     # load data
     stderr.write("parsing composition features\n")
@@ -37,11 +37,12 @@ if __name__ == "__main__":
     responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create a random model
-    model = UniversalModel([weight], [composition.empty_model(c, comp_data.num_features)])
+    model = UniversalModel(100,
+                          [composition.empty_model(c, comp_data.num_features)])
 
     # EM clustering
     priors = flat_priors(model.num_components)  # uniform (flat) priors
-    models, priors, responsibilities = em(model, priors, data, responsibilities)
+    models, priors, responsibilities = em(model, priors, data, responsibilities, sharp)
 
     # output results if clustering
     stdout.write("#%s\n" % "\t".join(model.names))

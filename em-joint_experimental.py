@@ -17,6 +17,7 @@ from sys import exit, stderr
 
 if __name__ == "__main__":
     from sys import argv, stdin, stdout, stderr
+    from math import log
     import signal
 
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
@@ -26,7 +27,7 @@ if __name__ == "__main__":
     data_size = np.fromiter(load_data_sizes(open(argv[2], "r")), dtype=size_type)[:, np.newaxis]
     seeds = seeds2indices(seqnames, load_seeds(open(argv[3], "r")))
     c = len(seeds)
-    weights = [float(i) for i in argv[7:]]
+    sharp = float(argv[7])
 
     # load data
     stderr.write("parsing coverage features\n")
@@ -42,20 +43,22 @@ if __name__ == "__main__":
     load_data_file(open(argv[6], "r"), lbl_data)
 
     data = UniversalData([cov_data, comp_data, lbl_data], sizes=data_size)
-    assert data.num_features == len(weights)
+    #assert data.num_features == len(weights)
 
     # construct inital (hard) responsibilities
     responsibilities = responsibilities_from_seeds(seeds, data.num_data)
 
     # create empty model for data
-    model = UniversalModel(weights, [binomial.empty_model(c, cov_data.num_features),
-                                     composition.empty_model(c, comp_data.num_features),
-                                     labeldist.empty_model(c, lbl_data.num_features, lbl_data.levelindex)
-                                     ])
+    model = UniversalModel(100,
+                           [binomial.empty_model(c, cov_data.num_features),
+                            composition.empty_model(c, comp_data.num_features),
+                            labeldist.empty_model(c, lbl_data.num_features, lbl_data.levelindex)
+                           ],
+                          )
 
     # EM clustering
     priors = flat_priors(model.num_components)  # uniform (flat) priors
-    models, priors, responsibilities = em(model, priors, data, responsibilities)
+    models, priors, responsibilities = em(model, priors, data, responsibilities, sharp)
 
     # output results if clustering
     stdout.write("#%s\n" % "\t".join(model.names))
