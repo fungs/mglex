@@ -33,7 +33,7 @@ def e_step(models, priors, data):
 
 def m_step(model, responsibilities, data):  # TODO: weighting of data points in model parameter maximization with
                                              # priors or responsibilities? -> sequence length in data? -> consistent?
-    # assert_probmatrix(responsibilities)
+    # common.assert_probmatrix(responsibilities)  # TODO: activate?
     priors = get_priors(data.sizes, responsibilities)  # TODO: check correctness
     cmask = np.asarray(priors, dtype=bool)  # determine empty clusters
     if np.any(np.logical_not(cmask)):
