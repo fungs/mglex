@@ -71,10 +71,15 @@ class Model:
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
+        assert data.num_features == self.num_features
         term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
+        assert np.all(~np.isnan(term1))
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
+        assert np.all(~np.isnan(term2))
         loglike = term1 + term2
-        assert np.all(loglike < .0)
+        loglike = loglike/self.num_features  # normalize by number of samples
+        print_probmatrix(loglike, file=logfile)
+        assert np.all(loglike <= .0)
         return loglike
 
     def get_labels(self, indices=None):
@@ -92,12 +97,16 @@ class Model:
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)
 
-        self.params = weighted_meancoverage_samples / weighted_meancoverage_total
+        self.params = (weighted_meancoverage_samples + 0.5) / (weighted_meancoverage_total + 0.5)  # introduced pseudocounts
         return self.update()
 
     @property
     def num_components(self):
         return self.params.shape[1]
+
+    @property
+    def num_features(self):
+        return self.params.shape[0]
 
     @property
     def names(self):
