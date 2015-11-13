@@ -154,12 +154,10 @@ load_data_file = lambda filename, store: load_data(open(filename, "r"), store)
 
 
 def assert_probmatrix(mat):
-    is_sum = mat.sum()
+    is_sum = mat.sum(dtype=np.float32)
     should_sum = mat.shape[0]
     assert_approx_equal(is_sum, should_sum, significant=0)
-    [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1)]
-    # assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
-    # print np.all(mat.sum(axis=1) == 1.)
+    [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1, dtype=np.float32)]
 
 
 def approx_equal(v1, v2, precision):

@@ -29,16 +29,12 @@ class Data(object):
 
     def prepare(self):
         self.frequencies = np.vstack(self._frequencies)
-        self.sizes = self.frequencies.sum(axis=1, keepdims=True)
+        self.sizes = self.frequencies.sum(axis=1, keepdims=True, dtype=common.size_type)  # TODO: replace by global seqlen
         print("Data frequencies", file=logfile)
-        common.print_vector(self.frequencies[0, :], file=logfile)
-        common.print_vector(self.frequencies[-1, :], file=logfile)
+        common.print_vector(self.frequencies[0, :], file=logfile)  # TODO: remove
+        common.print_vector(self.frequencies[-1, :], file=logfile)  # TODO: remove
         common.newline(file=logfile)
-        self.frequencies = self.frequencies / common.prob_type(self.sizes)  # TODO: why does /= not work?
-        # print("data frequencies after normalization")
-        # common.print_probvector(self.frequencies[0, :])
-        # common.print_probvector(self.frequencies[-1, :])
-        # common.newline()
+        self.frequencies = common.prob_type(self.frequencies/self.sizes)  # TODO: why does /= not work?
         common.assert_probmatrix(self.frequencies)
         return self
 
@@ -70,7 +66,7 @@ class Model(object):  # TODO: move names to supermodel
         self._pseudocount = pseudocount
 
         if initialize:
-            self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # normalize
+            self.variables = common.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # normalize
             self.update()
 
     def update(self):
@@ -118,7 +114,7 @@ class Model(object):  # TODO: move names to supermodel
         assert np.all(loglike < .0)
         return loglike
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):
+    def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: use seqlen for weighting of kmers in maximization
         if cmask is not None:
             responsibilities_reduced = responsibilities[:, cmask]
             self.variables = np.dot(responsibilities_reduced.T, data.frequencies)
