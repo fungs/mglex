@@ -19,6 +19,7 @@ import pickle
 
 # common data types
 prob_type = np.float16
+logprob_type = np.float16
 size_type = np.uint32
 
 
@@ -241,7 +242,7 @@ def log_fac(i):
     return r
 
 
-def seeds2indices(seqnames, seeds):
+def seeds2indices(seqnames, seeds):  # TODO: deprecated -> remove
     # a) build a dictionary for the seeds for fast lookup
     name2cluster = {}
     cluster_count = 0
@@ -260,11 +261,30 @@ def seeds2indices(seqnames, seeds):
     return seed_indices
 
 
-def responsibilities_from_seeds(seed_indices, num_data):
+def responsibilities_from_seeds(seed_indices, num_data):  # TODO: deprecated -> remove
     responsibilities = np.zeros((num_data, len(seed_indices)), dtype=prob_type)
     for i, s in enumerate(seed_indices):
         responsibilities[list(s), i] = 1.  # TODO: index with numpy array instead of list?
     return responsibilities
+
+def seeds2classindex(seeds):
+    name2cluster = {}
+    for i, names in enumerate(seeds):
+        for n in names:
+            name2cluster[n] = i
+
+def seeds2responsibility_iter(seqnames, seeds):
+    lookup = seeds2classindex(seeds)
+    template = np.zeros(len(seqname2classindex), dtype=prob_type)
+    for name in seqnames:
+        index = lookup.get(name, None)
+        if index:
+            row = template.copy()
+            row[index] = 1.
+        else:
+            row = template
+        yield row
+
 
 
 # def responsibilities_from_seeds(data, seeds):
@@ -300,6 +320,8 @@ def load_seeds(iterable):
             continue
         yield line.rstrip().split(" ")
 
+load_seeds_file = lambda filename: load_seeds(open(filename, "r"))
+
 load_seqlens_iter = lambda lines: (int(line.rstrip()) for line in lines)
 load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=size_type)[:, np.newaxis]
 load_seqlens_file = lambda filename: load_seqlens(open(filename, "r"))
@@ -312,6 +334,22 @@ load_model_file = lambda filename: load_model(open(filename, "rb"))
 
 save_model = pickle.dump
 save_model_file = lambda model, filename: save_model(model, open(filename, "wb"))
+
+load_probmatrix_iter = lambda lines: (-np.exp(np.array(line.split("\t")), dtype=logprob_type) for line in lines)
+load_probmatrix = lambda lines: np.fromiter(load_probmatrix_iter(lines))
+load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
+
+def write_probmatrix_iter(rows, file=stdout):
+    for row in map(np.asarray, rows):
+        file.write("\t".join(["%.2f" % i for i in -np.log(row)]))
+        file.write("\n")
+
+def write_probmatrix(mat, file=stdout):
+    for row in -np.log(np.asarray(mat)):
+        file.write("\t".join(["%.2f" % i for i in row]))
+        file.write("\n")
+
+write_probmatrix_file = lambda mat, filename: write_probmatrix(mat, open(filename, "w"))
 
 colors_dict = {
     'automatic'              : '#add8e6',     # 173, 216, 230
