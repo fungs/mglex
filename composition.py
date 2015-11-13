@@ -119,16 +119,19 @@ class Model(object):  # TODO: move names to supermodel
         return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
+
+        common.assert_probmatrix(data.frequencies)  # TODO: remove
+        common.assert_probmatrix(responsibilities)  # TODO: remove
+
         if cmask is not None:
-            responsibilities_reduced = responsibilities[:, cmask]
-            self.variables = np.dot(responsibilities_reduced.T, data.frequencies)
+            responsibilities = responsibilities[:, cmask]
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
-            self.variables = self.variables / responsibilities_reduced.sum(axis=0, keepdims=True).T  # normalize before update
-        else:
-            common.assert_probmatrix(data.frequencies)  # TODO: remove
-            common.assert_probmatrix(responsibilities)  # TODO: remove
-            self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
-            self.variables = self.variables / responsibilities.sum(axis=0, keepdims=True).T  # normalize before update
+
+        weights = responsibilities*data.sizes
+        #assert weights.shape == responsibilities.shape
+
+        self.variables = np.dot(weights.T, data.frequencies)  # TODO: consider data types (becomes float64?)
+        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True).T)  # normalize before update
 
         # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
         # common.print_probvector(self.variables.sum(axis=1))
@@ -137,8 +140,7 @@ class Model(object):  # TODO: move names to supermodel
         # common.print_probvector(self.variables[-1, :])
         # common.newline()
         # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
-
-        return self.update()
+        return self.update()  # TODO: fix double normalization in update()
 
     @property
     def num_components(self):
