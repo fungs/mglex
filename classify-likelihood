@@ -4,27 +4,49 @@ u"""
 This is the main program which takes a model and some data and returns the corresponding likelihoods.
 
 Usage:
-  classify-likelihood [options]  (--length <argument>) [--diffcoverage <argument>] [--composition <argument>] [--labeling <argument>]
+  classify-likelihood --help
+  classify-likelihood --version
+  classify-likelihood  (--seqlen <file>) (--model <file>) [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>]
 
-  -h, --help                        Show this screen.
-  -v, --version                     Show version.
-  -l <file>, --length <file>        Sequence lengths file
-  -d <file>, --diffcoverage <file>  Differential coverage data file for Binomial Model
+  -h, --help                        Show this screen
+  -v, --version                     Show version
+  -m <file>, --model <file>         Pre-calculated classificaton model file
+  -s <file>, --seqlen <file>        Sequence lengths file
+  -d <file>, --coverage <file>      Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
-  -t <file>, --labeling <file>      (Taxonomic) label-type data file for Hierarchical Naive Bayes Model
-  -m <file>, --model <file>         Model file for classificaton
-
+  -t <file>, --labels <file>        Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
+  -l <file>, --logfile <file>       File for logging
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+# TODO: support multiple arguments of the same kind, like multiple label input data
 
-from common import *
+__author__ = "johannes.droege@uni-duesseldorf.de"
+__version__ = "bla"
+
+import common
 import composition
 import binomial
-from em import *
-from sys import exit, stderr, argv
+import labeldist
+import sys
 
 if __name__ == "__main__":
-  from docopt import docopt
-  opt = docopt(__doc__, argv)
-  print(opt)
+    from docopt import docopt
+
+    argument = docopt(__doc__, version=__version__)
+    seqlen = common.load_seqlens_file(argument["--seqlen"])
+    model = common.load_model_file(argument["--model"])
+    data = common.UniversalData(sizes=seqlen)
+
+    for arg, data_obj, extra_opts in (("--coverage", binomial.Data, (seqlen,)),
+                                      ("--composition", composition.Data, ()),
+                                      ("--labels", labeldist.Data, ())):
+        filename = argument[arg]
+        if filename:
+            data.append(data_obj(*extra_opts))
+            print(data[-1], file=sys.stderr)
+            common.load_data_file(filename, data[-1])
+
+    # TODO: assert that the data types fit the models
+
+    mat = common.exp_normalize(model.log_likelihood(data))
+    common.print_predictions(mat)
