@@ -15,7 +15,7 @@ from operator import itemgetter
 from itertools import count, filterfalse, chain
 from collections import defaultdict, deque
 from sys import stderr, stdout
-
+import pickle
 
 # common data types
 prob_type = np.float16
@@ -150,7 +150,7 @@ def parse_lines(lines):
 #load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
 
 load_data = lambda lines, store: store.parse(parse_lines(lines))
-load_data_file = load_data  # transitional alias
+load_data_file = lambda filename, store: load_data(open(filename, "r"), store)
 
 
 def assert_probmatrix(mat):
@@ -302,11 +302,18 @@ def load_seeds(iterable):
             continue
         yield line.rstrip().split(" ")
 
-load_data_sizes = lambda lines: (int(line.rstrip()) for line in lines)
+load_seqlens_iter = lambda lines: (int(line.rstrip()) for line in lines)
+load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=size_type)[:, np.newaxis]
+load_seqlens_file = lambda filename: load_seqlens(open(filename, "r"))
 
 load_seqnames = lambda lines: (line.rstrip() for line in lines)
+load_seqnames_file = lambda filename: load_seqnames(open(filename, "r"))
 
+load_model = pickle.load
+load_model_file = lambda filename: load_model(open(filename, "rb"))
 
+save_model = pickle.dump
+save_model_file = lambda model, filename: save_model(model, open(filename, "wb"))
 
 colors_dict = {
     'automatic'              : '#add8e6',     # 173, 216, 230
