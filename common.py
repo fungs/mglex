@@ -272,19 +272,18 @@ def seeds2classindex(seeds):
     for i, names in enumerate(seeds):
         for n in names:
             name2cluster[n] = i
+    return name2cluster
 
 def seeds2responsibility_iter(seqnames, seeds):
+    seeds = list(seeds)
     lookup = seeds2classindex(seeds)
-    template = np.zeros(len(seqname2classindex), dtype=prob_type)
+    template = np.log(np.zeros(len(seeds), dtype=prob_type))
     for name in seqnames:
         index = lookup.get(name, None)
+        row = template.copy()
         if index:
-            row = template.copy()
-            row[index] = 1.
-        else:
-            row = template
+            row[index] = 0.
         yield row
-
 
 
 # def responsibilities_from_seeds(data, seeds):
@@ -322,30 +321,32 @@ def load_seeds(iterable):
 
 load_seeds_file = lambda filename: load_seeds(open(filename, "r"))
 
-load_seqlens_iter = lambda lines: (int(line.rstrip()) for line in lines)
+load_seqlens_iter = lambda lines: (size_type(line.rstrip()) for line in lines)
 load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=size_type)[:, np.newaxis]
 load_seqlens_file = lambda filename: load_seqlens(open(filename, "r"))
 
-load_seqnames = lambda lines: (line.rstrip() for line in lines)
-load_seqnames_file = lambda filename: load_seqnames(open(filename, "r"))
+load_seqnames_iter = lambda lines: (line.rstrip() for line in lines)
+load_seqnames_file = lambda filename: load_seqnames_iter(open(filename, "r"))
 
 load_model = pickle.load
 load_model_file = lambda filename: load_model(open(filename, "rb"))
 
-save_model = pickle.dump
-save_model_file = lambda model, filename: save_model(model, open(filename, "wb"))
+write_model = pickle.dump
+write_model_file = lambda model, filename: save_model(model, open(filename, "wb"))
 
-load_probmatrix_iter = lambda lines: (-np.exp(np.array(line.split("\t")), dtype=logprob_type) for line in lines)
-load_probmatrix = lambda lines: np.fromiter(load_probmatrix_iter(lines))
+load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=logprob_type) for line in lines)
+load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
 load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
 
 def write_probmatrix_iter(rows, file=stdout):
+    trans = lambda row: -np.asarray(row, dtype=logprob_type)
     for row in map(np.asarray, rows):
-        file.write("\t".join(["%.2f" % i for i in -np.log(row)]))
+        file.write("\t".join(["%.2f" % i for i in trans(row)]))
         file.write("\n")
 
 def write_probmatrix(mat, file=stdout):
-    for row in -np.log(np.asarray(mat)):
+    mat = -np.asarray(mat, logprob_type)
+    for row in mat:
         file.write("\t".join(["%.2f" % i for i in row]))
         file.write("\n")
 
@@ -802,6 +803,10 @@ class DefaultList(list):
             while len(self) <= index:
                 self.append(self._fx())
             return list.__getitem__(self, index)
+
+def handle_broken_pipe():
+    import signal
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 if __name__ == "__main__":
