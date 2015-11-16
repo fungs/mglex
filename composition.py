@@ -97,7 +97,7 @@ class Model(object):  # TODO: move names to supermodel
         # problem: update() is called after each maximize step
 
         self.variables += 1  # TODO: change code
-        self.variables = common.prob_type(self.variables / self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory usage
+        self.variables = common.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory usage
         common.assert_probmatrix(self.variables)
         self._loglikes = np.log(self.variables)
         return False
@@ -115,25 +115,14 @@ class Model(object):  # TODO: move names to supermodel
         return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: use seqlen for weighting of kmers in maximization
+        common.assert_probmatrix(data.frequencies)  # TODO: remove
+
         if cmask is not None:
-            responsibilities_reduced = responsibilities[:, cmask]
-            self.variables = np.dot(responsibilities_reduced.T, data.frequencies)
+            responsibilities = responsibilities[:, cmask]
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
-            self.variables = self.variables / responsibilities_reduced.sum(axis=0, keepdims=True).T  # normalize before update
-        else:
-            common.assert_probmatrix(data.frequencies)  # TODO: remove
-            common.assert_probmatrix(responsibilities)  # TODO: remove
-            self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
-            self.variables = self.variables / responsibilities.sum(axis=0, keepdims=True).T  # normalize before update
 
-        # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
-        # common.print_probvector(self.variables.sum(axis=1))
-        # common.print_vector(responsibilities.sum(axis=0))
-        # common.print_probvector(self.variables[0, :])
-        # common.print_probvector(self.variables[-1, :])
-        # common.newline()
-        # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
-
+        self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
+        self.variables = common.prob_type(self.variables/responsibilities.sum(axis=0, keepdims=True).T)  # normalize before update
         return self.update()
 
     @property
@@ -172,12 +161,20 @@ def load_model_tuples(inseq, **kwargs):  # TODO: make generic
 # TODO: add load_data from generic with data-specific parse_line function
 load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines_comma(i), **kwargs)  # TODO: move to model class?
 
+def random_model(cluster_number, initial_data, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    initial_freqs = np.asarray(np.random.rand(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    return Model(initial_freqs, list(map(str, list(range(component_number)))), **kwargs)
 
-def random_model(component_number, feature_number, pseudocount=False):
-    initial_freqs = np.asarray(np.random.rand(component_number, feature_number), dtype=common.prob_type, pseudocount=pseudocount)
-    return Model(initial_freqs, list(map(str, list(range(component_number)))))
+
+def empty_model(cluster_number, initial_data, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    initial_freqs = np.ones(shape=(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    return Model(initial_freqs, list(map(str, list(range(cluster_number)))), initialize=False, **kwargs)
 
 
-def empty_model(component_number, feature_number, pseudocount=False):
-    initial_freqs = np.ones(shape=(component_number, feature_number), dtype=common.prob_type)
-    return Model(initial_freqs, list(map(str, list(range(component_number)))), initialize=False, pseudocount=pseudocount)
+def load_data_file(filename, **kwargs):
+    d = Data(**kwargs)
+    return common.load_data_file(filename, d)
