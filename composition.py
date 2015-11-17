@@ -117,12 +117,12 @@ class Model(object):  # TODO: move names to supermodel
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: use seqlen for weighting of kmers in maximization
         common.assert_probmatrix(data.frequencies)  # TODO: remove
 
-        if cmask is not None:
+        if cmask is not None:  # shrink number of clusters
             responsibilities = responsibilities[:, cmask]
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
 
-        self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: double normalization in update()
-        self.variables = common.prob_type(self.variables/responsibilities.sum(axis=0, keepdims=True).T)  # normalize before update
+        self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: remove double normalization in update()
+        self.variables = common.prob_type(self.variables/responsibilities.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
         return self.update()
 
     @property
@@ -165,7 +165,7 @@ def random_model(cluster_number, initial_data, **kwargs):
     assert cluster_number > 0
     assert type(initial_data) == Data
     initial_freqs = np.asarray(np.random.rand(cluster_number, initial_data.num_features), dtype=common.prob_type)
-    return Model(initial_freqs, list(map(str, list(range(component_number)))), **kwargs)
+    return Model(initial_freqs, list(map(str, list(range(cluster_number)))), **kwargs)
 
 
 def empty_model(cluster_number, initial_data, **kwargs):
