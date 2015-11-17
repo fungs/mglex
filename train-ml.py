@@ -48,7 +48,7 @@ if __name__ == "__main__":
         responsibility = common.load_probmatrix(sys.stdin)
     responsibility = np.exp(responsibility, dtype=common.prob_type)
 
-    c = responsibility.shape[1]
+    n, c = responsibility.shape
 
     seqlen = common.load_seqlens_file(argument["--seqlen"])
     data = common.UniversalData(sizes=seqlen)
@@ -64,6 +64,7 @@ if __name__ == "__main__":
         if filename:
             data_obj = submodule.load_data_file(filename, **data_opts)
             model_obj = submodule.empty_model(c, data_obj)
+            assert data_obj.num_data == n  # TODO: put simple checks into model functions
             data.append(data_obj)
             model.append(model_obj)
 

@@ -20,6 +20,7 @@ import pickle
 # common data types
 prob_type = np.float16
 logprob_type = np.float16
+large_float_type = np.float32
 size_type = np.uint32
 
 
@@ -281,7 +282,7 @@ def seeds2responsibility_iter(seqnames, seeds):
     for name in seqnames:
         index = lookup.get(name, None)
         row = template.copy()
-        if index:
+        if index is not None:
             row[index] = 0.
         yield row
 
@@ -332,7 +333,7 @@ load_model = pickle.load
 load_model_file = lambda filename: load_model(open(filename, "rb"))
 
 write_model = pickle.dump
-write_model_file = lambda model, filename: save_model(model, open(filename, "wb"))
+write_model_file = lambda model, filename: write_model(model, open(filename, "wb"))
 
 load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=logprob_type) for line in lines)
 load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
