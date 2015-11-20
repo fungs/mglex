@@ -5,12 +5,23 @@ Submodule with all evaluation-related code.
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
 import common
-from itertools import permutations, islice
+import itertools
 import numpy as np
 import sys
 
 
-def expected_pairwise_clustering(lmat, pmat):
+def chunkify(iterable, n):
+    it = iter(iterable)
+    while True:
+        blockiter = itertools.islice(it, n)
+        try:
+            firstitem = next(blockiter)
+            yield itertools.chain((firstitem,), blockiter)
+        except StopIteration:
+            break
+
+
+def expected_pairwise_clustering_simple(lmat, pmat):
     u"""
     Takes a label matrix one-zero entries and probability class assignments and calculates an evaluation statistic
     S = log((1/C) * \sum_i=1_C (1/|C_i|*(|C_i|-1)) * \sum_{d_1, d_2 \element C_i, d_1 != d_2} p(d_1|C_i)*p(d_2|C_i))
@@ -25,7 +36,6 @@ def expected_pairwise_clustering(lmat, pmat):
     negative_inf = -float("inf")
     for lvec, pvec in zip(lmat, pmat):
         number_nonzero = lvec.size - np.sum(lvec == negative_inf)
-        #sys.stderr.write("label entiries: %i\n" % number_nonzero)
         if not number_nonzero:
             continue
         assert number_nonzero == 1
@@ -51,11 +61,10 @@ def expected_pairwise_clustering(lmat, pmat):
     return probs
 
 
-def expected_pairwise_clustering2(lmat, pmat, weights=None, subsample=None):
+def expected_pairwise_clustering_iterative(lmat, pmat, weights=None, subsample=None):
     assert lmat.shape == pmat.shape
 
-    n = lmat.shape[0]
-    c = lmat.shape[1]
+    n, c = lmat.shape
 
     if subsample and subsample < n:
         rows_sampling = np.random.choice(n, subsample, replace=False)
@@ -67,33 +76,30 @@ def expected_pairwise_clustering2(lmat, pmat, weights=None, subsample=None):
     norm_term = np.zeros(c, dtype=common.large_float_type)
 
 
-    for (lvec1, pvec1), (lvec2, pvec2) in permutations(zip(lmat, pmat), 2):  # TODO: can also use permutation of indices
-        #sys.stderr.write("lvecs: %s, %s\n" % (lvec1, lvec2))
-        #sys.stderr.write("pvecs: %s, %s\n" % (pvec1, pvec2))
-
+    for (lvec1, pvec1), (lvec2, pvec2) in combinations(zip(lmat, pmat), 2):  # TODO: can also use permutation of indices
         lprob = lvec1*lvec2
 
         if np.any(lprob):
             pprob = np.dot(pvec1, pvec2)
-
-            #sys.stderr.write("lprob: %s\n" % lprob)
-            #sys.stderr.write("pprob: %s\n" % pprob)
 
             prob_sum += lprob * pprob
             sys.stderr.write("prob_term: %s\n" % lprob*pprob)
 
             norm_term += lprob
 
+    #print(common.pretty_probvector(prob_sum))
+    #print(common.pretty_probvector(norm_term))
+
     probs = prob_sum/norm_term
     sys.stderr.write("%.2f\t%.2f\t%s\n" % (np.mean(probs), np.sum(probs**2), common.pretty_probvector(probs)))
     return probs
 
 
-def expected_pairwise_clustering3(lmat, pmat, weights=None, subsample=None, blocksize=1000):
+# TODO: incorporate weights, filter possible pairs before matrix arithmetics
+def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None):
     assert lmat.shape == pmat.shape
 
-    n = lmat.shape[0]
-    c = lmat.shape[1]
+    n, c = lmat.shape
 
     if subsample and subsample < n:
         rows_sampling = np.random.choice(n, subsample, replace=False)
@@ -101,29 +107,30 @@ def expected_pairwise_clustering3(lmat, pmat, weights=None, subsample=None, bloc
         pmat = pmat[rows_sampling]
         n = subsample
 
+    if not blocksize:
+        blocksize = n
+
     prob_sum = np.zeros(c, dtype=common.large_float_type)
     norm_term = np.zeros(c, dtype=common.large_float_type)
 
-    indices = permutations(range(n), 2)
+    indices = itertools.combinations(range(n), 2)
 
-    for i1, i2 in zip(*islice(indices, blocksize)):
-        #sys.stderr.write("lvecs: %s, %s\n" % (lvec1, lvec2))
-        #sys.stderr.write("pvecs: %s, %s\n" % (pvec1, pvec2))
+    for index_block in chunkify(indices, blocksize):
+        i1, i2 = map(list, zip(*index_block))
 
         lprob = lmat[i1]*lmat[i2]
+        pprob = np.sum(pmat[i1]*pmat[i2], axis=1, keepdims=True, dtype=common.large_float_type)
 
-        if np.any(lprob):
-            pprob = np.dot(pmat[i1], pmat[i2])
+        block_prob_sum = lprob * pprob
 
-            #sys.stderr.write("lprob: %s\n" % lprob)
-            #sys.stderr.write("pprob: %s\n" % pprob)
+        prob_sum += np.sum(block_prob_sum, axis=0, dtype=common.large_float_type)
+        norm_term += np.sum(lprob, axis=0, dtype=common.large_float_type)
 
-            prob_sum += np.sum(lprob * pprob, axis=0)
-            sys.stderr.write("prob_term: %s\n" % lprob*pprob)
-
-            norm_term += lprob.sum(axis=0)
+    #print(common.pretty_probvector(prob_sum))
+    #print(common.pretty_probvector(norm_term))
 
     probs = prob_sum/norm_term
+
     sys.stderr.write("%.2f\t%.2f\t%s\n" % (np.mean(probs), np.sum(probs**2), common.pretty_probvector(probs)))
     return probs
 
