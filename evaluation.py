@@ -11,14 +11,13 @@ import sys
 
 
 def chunkify(iterable, n):
-    it = iter(iterable)
-    while True:
-        blockiter = itertools.islice(it, n)
-        try:
-            firstitem = next(blockiter)
-            yield itertools.chain((firstitem,), blockiter)
-        except StopIteration:
-            break
+    iterable = iter(iterable)
+    n_rest = n - 1
+
+    for item in iterable:
+        rest = itertools.islice(iterable, n_rest)
+        yield itertools.chain((item,), rest)
+
 
 
 def expected_pairwise_clustering_simple(lmat, pmat):
@@ -76,7 +75,7 @@ def expected_pairwise_clustering_iterative(lmat, pmat, weights=None, subsample=N
     norm_term = np.zeros(c, dtype=common.large_float_type)
 
 
-    for (lvec1, pvec1), (lvec2, pvec2) in combinations(zip(lmat, pmat), 2):  # TODO: can also use permutation of indices
+    for (lvec1, pvec1), (lvec2, pvec2) in itertools.combinations(zip(lmat, pmat), 2):  # TODO: can also use permutation of indices
         lprob = lvec1*lvec2
 
         if np.any(lprob):
@@ -96,19 +95,30 @@ def expected_pairwise_clustering_iterative(lmat, pmat, weights=None, subsample=N
 
 
 # TODO: incorporate weights, filter possible pairs before matrix arithmetics
-def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None):
+def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
     assert lmat.shape == pmat.shape
 
     n, c = lmat.shape
 
+    # default blocksize set to input matrix size
+    if not blocksize:
+        blocksize = n
+
+    # random subsampling, if requested
     if subsample and subsample < n:
         rows_sampling = np.random.choice(n, subsample, replace=False)
         lmat = lmat[rows_sampling]
         pmat = pmat[rows_sampling]
         n = subsample
 
-    if not blocksize:
-        blocksize = n
+    # compress if requested
+    if compress:
+        mask = lmat.sum(dtype=np.bool_, axis=1)
+        if not np.all(mask):
+            lmat = lmat.compress(mask, axis=0)
+            pmat = pmat.compress(mask, axis=0)
+            n = lmat.shape[0]
+
 
     prob_sum = np.zeros(c, dtype=common.large_float_type)
     norm_term = np.zeros(c, dtype=common.large_float_type)
@@ -116,10 +126,10 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
     indices = itertools.combinations(range(n), 2)
 
     for index_block in chunkify(indices, blocksize):
-        i1, i2 = map(list, zip(*index_block))
+        i1, i2 = zip(*index_block)
 
-        lprob = lmat[i1]*lmat[i2]
-        pprob = np.sum(pmat[i1]*pmat[i2], axis=1, keepdims=True, dtype=common.large_float_type)
+        lprob = lmat.take(i1, axis=0) * lmat.take(i2, axis=0)
+        pprob = np.sum(pmat.take(i1, axis=0) * pmat.take(i2, axis=0), axis=1, keepdims=True, dtype=common.large_float_type)
 
         block_prob_sum = lprob * pprob
 
@@ -133,10 +143,6 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
 
     sys.stderr.write("%.2f\t%.2f\t%s\n" % (np.mean(probs), np.sum(probs**2), common.pretty_probvector(probs)))
     return probs
-
-
-def rows2array():
-    pass
 
 
 if __name__ == "__main__":
