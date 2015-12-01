@@ -9,7 +9,7 @@ u"""
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from common import *
+import common
 import numpy as np
 from collections import deque
 from sys import argv, exit, stdin, stdout, stderr, exit
@@ -218,11 +218,20 @@ def load_data(input, samples):  # TODO: add load_data from generic with data-spe
     return store.prepare()
 
 
-def empty_model(component_number, feature_number, levelindex):  # TODO: make generic
-    params = np.zeros(shape=(feature_number, component_number), dtype=prob_type)
-    return Model(params, levelindex)
+def empty_model(cluster_number, initial_data, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    params = np.zeros(shape=(initial_data.num_features, cluster_number), dtype=prob_type)
+    return Model(params, initial_data.levelindex)
 
 
-def random_model(component_number, feature_number, levelindex, low=0, high=None):  # TODO: make generic
-    params = np.random.random_integers(low=low, high=high, size=(feature_number, component_number))
-    return Model(params, levelindex)
+def random_model(cluster_number, initial_data, low, high, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    params = np.random.random_integers(low=low, high=high, size=(initial_data.num_features, cluster_number))
+    return Model(params, initial_data.levelindex)
+
+
+def load_data_file(filename, **kwargs):
+    d = Data(**kwargs)
+    return common.load_data_file(filename, d)

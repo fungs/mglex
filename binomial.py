@@ -8,7 +8,7 @@
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from common import *
+import common
 import numpy as np
 from sys import argv, exit, stdin, stdout, stderr, exit
 
@@ -78,7 +78,7 @@ class Model:
         assert np.all(~np.isnan(term2))
         loglike = term1 + term2
         loglike = loglike/self.num_features  # normalize by number of samples
-        print_probmatrix(loglike, file=logfile)
+        common.write_probmatrix(loglike, file=logfile)
         assert np.all(loglike <= .0)
         return loglike
 
@@ -115,13 +115,21 @@ class Model:
     _short_name = "BI_model"
 
 
+def empty_model(cluster_number, initial_data, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    params = np.zeros(shape=(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    return Model(params, **kwargs)
 
-def empty_model(component_number, feature_number):  # TODO: make generic
-    params = np.zeros(shape=(component_number, feature_number), dtype=prob_type)
-    return Model(params)
 
-
-def random_model(component_number, feature_number):  # TODO: make generic
-    params = np.random.rand(component_number, feature_number)
+def random_model(cluster_number, initial_data, **kwargs):
+    assert cluster_number > 0
+    assert type(initial_data) == Data
+    params = np.random.rand(cluster_number, initial_data.num_features)
     params /= params.sum(axis=1, keepdims=True)
-    return Model(params)
+    return Model(params, **kwargs)
+
+
+def load_data_file(filename, **kwargs):
+    d = Data(**kwargs)
+    return common.load_data_file(filename, d)
