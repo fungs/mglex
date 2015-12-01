@@ -15,10 +15,12 @@ from operator import itemgetter
 from itertools import count, filterfalse, chain
 from collections import defaultdict, deque
 from sys import stderr, stdout
-
+import pickle
 
 # common data types
 prob_type = np.float16
+logprob_type = np.float16
+large_float_type = np.float32
 size_type = np.uint32
 
 
@@ -150,16 +152,14 @@ def parse_lines(lines):
 #load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
 
 load_data = lambda lines, store: store.parse(parse_lines(lines))
-load_data_file = load_data  # transitional alias
+load_data_file = lambda filename, store: load_data(open(filename, "r"), store)
 
 
 def assert_probmatrix(mat):
-    is_sum = mat.sum()
+    is_sum = mat.sum(dtype=np.float32)
     should_sum = mat.shape[0]
     assert_approx_equal(is_sum, should_sum, significant=0)
-    [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1)]
-    # assert(np.all(1. - mat.sum(axis=1) <= 0.0001))
-    # print np.all(mat.sum(axis=1) == 1.)
+    [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1, dtype=np.float32)]
 
 
 def approx_equal(v1, v2, precision):
@@ -243,7 +243,7 @@ def log_fac(i):
     return r
 
 
-def seeds2indices(seqnames, seeds):
+def seeds2indices(seqnames, seeds):  # TODO: deprecated -> remove
     # a) build a dictionary for the seeds for fast lookup
     name2cluster = {}
     cluster_count = 0
@@ -262,11 +262,29 @@ def seeds2indices(seqnames, seeds):
     return seed_indices
 
 
-def responsibilities_from_seeds(seed_indices, num_data):
+def responsibilities_from_seeds(seed_indices, num_data):  # TODO: deprecated -> remove
     responsibilities = np.zeros((num_data, len(seed_indices)), dtype=prob_type)
     for i, s in enumerate(seed_indices):
         responsibilities[list(s), i] = 1.  # TODO: index with numpy array instead of list?
     return responsibilities
+
+def seeds2classindex(seeds):
+    name2cluster = {}
+    for i, names in enumerate(seeds):
+        for n in names:
+            name2cluster[n] = i
+    return name2cluster
+
+def seeds2responsibility_iter(seqnames, seeds):
+    seeds = list(seeds)
+    lookup = seeds2classindex(seeds)
+    template = np.log(np.zeros(len(seeds), dtype=prob_type))
+    for name in seqnames:
+        index = lookup.get(name, None)
+        row = template.copy()
+        if index is not None:
+            row[index] = 0.
+        yield row
 
 
 # def responsibilities_from_seeds(data, seeds):
@@ -302,11 +320,38 @@ def load_seeds(iterable):
             continue
         yield line.rstrip().split(" ")
 
-load_data_sizes = lambda lines: (int(line.rstrip()) for line in lines)
+load_seeds_file = lambda filename: load_seeds(open(filename, "r"))
 
-load_seqnames = lambda lines: (line.rstrip() for line in lines)
+load_seqlens_iter = lambda lines: (size_type(line.rstrip()) for line in lines)
+load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=size_type)[:, np.newaxis]
+load_seqlens_file = lambda filename: load_seqlens(open(filename, "r"))
 
+load_seqnames_iter = lambda lines: (line.rstrip() for line in lines)
+load_seqnames_file = lambda filename: load_seqnames_iter(open(filename, "r"))
 
+load_model = pickle.load
+load_model_file = lambda filename: load_model(open(filename, "rb"))
+
+write_model = pickle.dump
+write_model_file = lambda model, filename: write_model(model, open(filename, "wb"))
+
+load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=logprob_type) for line in lines)
+load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
+load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
+
+def write_probmatrix_iter(rows, file=stdout):
+    trans = lambda row: -np.asarray(row, dtype=logprob_type)
+    for row in map(np.asarray, rows):
+        file.write("\t".join(["%.2f" % i for i in trans(row)]))
+        file.write("\n")
+
+def write_probmatrix(mat, file=stdout):
+    mat = -np.asarray(mat, logprob_type)
+    for row in mat:
+        file.write("\t".join(["%.2f" % i for i in row]))
+        file.write("\n")
+
+write_probmatrix_file = lambda mat, filename: write_probmatrix(mat, open(filename, "w"))
 
 colors_dict = {
     'automatic'              : '#add8e6',     # 173, 216, 230
@@ -759,6 +804,10 @@ class DefaultList(list):
             while len(self) <= index:
                 self.append(self._fx())
             return list.__getitem__(self, index)
+
+def handle_broken_pipe():
+    import signal
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 
 if __name__ == "__main__":
