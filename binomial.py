@@ -17,12 +17,17 @@ frequency_type = np.int32
 logtype = np.float64  # TODO: adjust according to maximum values
 logfile = open("coverage.log", "w")
 
+# TODO: clear dependency on scipy
+from scipy.special import gammaln
+factorial = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
+
 
 class Data:
     def __init__(self, sizes):
         self._covmeans = []  # TODO: use deque() for large append-only lists
         self.covmeans = None
         self.covmeanstotal = None
+        self.conterm = None
         self.sizes = sizes
 
     def deposit(self, features):  # TODO: improve data parsing and handling
@@ -37,6 +42,8 @@ class Data:
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
+        self.conterm = factorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True)
+
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
         return self
 
@@ -72,11 +79,11 @@ class Model:
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
         assert data.num_features == self.num_features
-        term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
+        term1 = np.dot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
-        term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # mean coverage version
+        term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
         assert np.all(~np.isnan(term2))
-        loglike = term1 + term2
+        loglike = term1 + term2 + data.conterm
         loglike = loglike/self.num_features  # normalize by number of samples
         common.write_probmatrix(loglike, file=logfile)
         assert np.all(loglike <= .0)
