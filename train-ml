@@ -7,14 +7,13 @@ u"""
 
 Usage:
   train-ml  (--help | --version)
-  train-ml  (--seqlen <file>) (--weight <float>) (--outmodel <file>) [--responsibility <file>]
+  train-ml  (--seqlen <file>) (--outmodel <file>) [--responsibility <file>]
             [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>] [--normalize]
 
   -h, --help                            Show this screen
   -v, --version                         Show version
   -n, --normalize                       Input weights are normalized (as class posteriors)
   -r <file>, --responsibility <file>    Responsibility (weight) matrix file; default standard input
-  -w <float>, --weight <float>          Parameter for logarithmic weighting of sequence length
   -o <file>, --outmodel <file>          Output classificaton model file; default standard input
   -s <file>, --seqlen <file>            Sequence lengths file
   -d <file>, --coverage <file>          Differential mean coverage data file for Binomial Model
@@ -52,7 +51,7 @@ if __name__ == "__main__":
 
     seqlen = common.load_seqlens_file(argument["--seqlen"])
     data = common.UniversalData(sizes=seqlen)
-    model = common.UniversalModel(float(argument["--weight"]))
+    model = common.UniversalModel()
 
     # TODO: remove data opts by passing seqlen weight vector
     for arg, submodule, data_opts in (

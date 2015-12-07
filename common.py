@@ -24,7 +24,7 @@ large_float_type = np.float32
 size_type = np.uint32
 
 
-class UniversalData(list):  # TODO: rename GenericData
+class UniversalData(list):  # TODO: rename CompositeData
     def __init__(self, *args, sizes: "column NumPy array or iterator", **kwargs):
         super(UniversalData, self).__init__(*args, **kwargs)
         try:
@@ -66,10 +66,9 @@ class UniversalData(list):  # TODO: rename GenericData
     size_type = size_type
 
 
-class UniversalModel(list):  # TODO: rename GenericModel, implement update() and maximize_likelihood()
-    def __init__(self, baselength, *args, **kw):
+class UniversalModel(list):  # TODO: rename CompositeModel, implement update() and maximize_likelihood()
+    def __init__(self, *args, **kw):
         super(UniversalModel, self).__init__(*args, **kw)
-        self.baselength = float(baselength)
 
     @property
     def names(self):
@@ -95,9 +94,9 @@ class UniversalModel(list):  # TODO: rename GenericModel, implement update() and
         for m, mvec, lvec in zip(self, s, l):  # TODO: save memory
             print(m._short_name, "***", pretty_probvector(mvec), "***", pretty_probvector(lvec), file=stderr)
 
-        loglike = (np.log(data.sizes)/np.log(self.baselength)) * ll_per_model.sum(axis=0, keepdims=False)
+        #loglike = (np.log(data.sizes)/np.log(self.baselength)) * ll_per_model.sum(axis=0, keepdims=False)
+        loglike = ll_per_model.sum(axis=0, keepdims=False)
         return loglike
-
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):
         tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?
