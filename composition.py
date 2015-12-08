@@ -61,6 +61,7 @@ class Model(object):  # TODO: move names to supermodel
     def __init__(self, variables, names, initialize=True, pseudocount=False):  # TODO: add pseudocount implementation
         self.names = names
         self.variables = variables
+        self.standard_deviation = None
         self._fmask = None
         self._loglikes = None
         self._pseudocount = pseudocount
@@ -102,7 +103,7 @@ class Model(object):  # TODO: move names to supermodel
         self._loglikes = np.log(self.variables)
         return False
 
-    def log_likelihood(self, data):
+    def log_likelihood(self, data, normalize=True):
         # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
         assert data.num_features == self.variables.shape[1]
         if self._pseudocount:
@@ -111,19 +112,36 @@ class Model(object):  # TODO: move names to supermodel
             loglike = np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
         else:
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
+
+        if normalize:
+            loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
+            stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
+
         assert np.all(loglike < .0)
         return loglike
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: use seqlen for weighting of kmers in maximization
         common.assert_probmatrix(data.frequencies)  # TODO: remove
 
-        if cmask is not None:  # shrink number of clusters
-            responsibilities = responsibilities[:, cmask]
+        # TODO: input as combined weights, not responsibilities and data.sizes
+        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+
+        if cmask is None or cmask.shape == () or np.all(cmask):
+            weights = responsibilities * size_weights
+        else:
+            weights = responsibilities[:, cmask] * size_weights
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
 
-        self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: remove double normalization in update()
-        self.variables = common.prob_type(self.variables/responsibilities.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
-        return self.update()
+        stderr.write("weights dtype: %s\n" % weights.dtype)
+
+        self.variables = np.dot(weights.T, data.frequencies)  # TODO: remove double normalization in update()
+        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
+
+        dimchange = self.update()  # create cache for likelihood calculations
+        ll = self.log_likelihood(data, normalize=False)
+        self.standard_deviation = np.asarray(np.sqrt(common.weighted_variance(ll, weights)), common.logprob_type)
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(self.standard_deviation))
+        return dimchange
 
     @property
     def num_components(self):
