@@ -19,7 +19,7 @@ logfile = open("coverage.log", "w")
 
 # TODO: clear dependency on scipy
 from scipy.special import gammaln
-factorial = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
+logfactorial = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
 class Data:
@@ -42,7 +42,7 @@ class Data:
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = factorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True)
+        self.conterm = np.asarray(logfactorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=common.logprob_type)
 
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
         return self
@@ -65,6 +65,7 @@ class Model:
     def __init__(self, params, initialize=True):
         #print(params.shape, file=stderr)
         self.params = np.array(params).T  # TODO: why pass transposed?
+        self.standard_deviation = None
         self._params_sum = None
         self._params_log = None
         self._params_complement_log = None
@@ -73,19 +74,25 @@ class Model:
             self.update()
 
     def update(self):
-        self._params_log = np.log(self.params)
-        self._params_complement_log = np.log(1. - self.params)
+        self._params_log = np.asarray(np.log(self.params), dtype=common.logprob_type)
+        self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=common.logprob_type)
         return False  # indicates whether a dimension change occurred
 
-    def log_likelihood(self, data):  # TODO: check and adjust formula
+    def log_likelihood(self, data, normalize=True):  # TODO: check and adjust formula
         assert data.num_features == self.num_features
         term1 = np.dot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
         assert np.all(~np.isnan(term2))
-        loglike = term1 + term2 + data.conterm
-        loglike = loglike/self.num_features  # normalize by number of samples
+        loglike = np.asarray(term1 + term2 + data.conterm, dtype=common.logprob_type)
+        #loglike = loglike/self.num_features  # normalize by number of samples  # deprecated due to normalization
+
+        if normalize:
+            loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
+            stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
+
         common.write_probmatrix(loglike, file=logfile)
+
         assert np.all(loglike <= .0)
         return loglike
 
@@ -96,16 +103,33 @@ class Model:
             yield "-".join(("%i" % round(v) for v in np.asarray(self.params)[:, i]))
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
+        # TODO: input as combined weights, not responsibilities and data.sizes
+        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+        #size_weights = data.sizes
+
         if cmask is None or cmask.shape == () or np.all(cmask):
-            weights = responsibilities * data.sizes
+            weights = responsibilities * size_weights
         else:
-            weights = responsibilities[:, cmask] * data.sizes
+            weights = responsibilities[:, cmask] * size_weights
 
-        weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)
-        weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)
+        stderr.write("weights dtype: %s\n" % weights.dtype)
 
-        self.params = (weighted_meancoverage_samples + 0.5) / (weighted_meancoverage_total + 0.5)  # introduced pseudocounts
-        return self.update()
+        weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)  # TODO: use np.average?
+        weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)  # TODO: use np.average? simplify?
+
+        stderr.write("meancov dtype: %s/%s\n" % (weighted_meancoverage_samples.dtype, weighted_meancoverage_total.dtype))
+
+        pseudocount = 0.0000000001  # TODO: refine
+        self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
+                                 dtype=common.prob_type)  # introduced pseudocounts
+        stderr.write("params dtype: %s\n" % self.params.dtype)
+
+        dimchange = self.update()  # create cache for likelihood calculations
+        ll = self.log_likelihood(data, normalize=False)
+        stderr.write("ll dtype: %s\n" % ll.dtype)
+        self.standard_deviation = np.asarray(np.sqrt(common.weighted_variance(ll, weights)), dtype=common.logprob_type)
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(self.standard_deviation))
+        return dimchange
 
     @property
     def num_components(self):
