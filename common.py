@@ -88,7 +88,7 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
     def log_likelihood(self, data):
         #assert self.weights.size == len(self)
 
-        ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])  # TODO: reduce memory usage
+        ll_per_model = np.asarray([m.log_likelihood(d)/m.stdev for (m, d) in zip(self, data)])  # TODO: reduce memory usage, de-normalize scale
         s = np.mean(np.exp(ll_per_model), axis=1)  # TODO: remove debug calculations
         l = np.sum(ll_per_model, axis=1, dtype=large_float_type)  # TODO: remove debug calculations
         for m, mvec, lvec in zip(self, s, l):  # TODO: save memory
