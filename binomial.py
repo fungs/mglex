@@ -65,7 +65,7 @@ class Model:
     def __init__(self, params, initialize=True):
         #print(params.shape, file=stderr)
         self.params = np.array(params).T  # TODO: why pass transposed?
-        self.standard_deviation = None
+        self.stdev = None
         self._params_sum = None
         self._params_log = None
         self._params_complement_log = None
@@ -87,9 +87,9 @@ class Model:
         loglike = np.asarray(term1 + term2 + data.conterm, dtype=common.logprob_type)
         #loglike = loglike/self.num_features  # normalize by number of samples  # deprecated due to normalization
 
-        if normalize:
-            loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
-            stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
+        #if normalize:
+            #loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
+            #stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
 
         common.write_probmatrix(loglike, file=logfile)
 
@@ -127,8 +127,13 @@ class Model:
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data, normalize=False)
         stderr.write("ll dtype: %s\n" % ll.dtype)
-        self.standard_deviation = np.asarray(np.sqrt(common.weighted_variance(ll, weights)), dtype=common.logprob_type)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(self.standard_deviation))
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights))
+        weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        combined_std = np.dot(std_per_class, relative_weight_per_class)
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        self.stdev = combined_std
         return dimchange
 
     @property

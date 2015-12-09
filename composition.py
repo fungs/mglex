@@ -61,7 +61,7 @@ class Model(object):  # TODO: move names to supermodel
     def __init__(self, variables, names, initialize=True, pseudocount=False):  # TODO: add pseudocount implementation
         self.names = names
         self.variables = variables
-        self.standard_deviation = None
+        self.stdev = None
         self._fmask = None
         self._loglikes = None
         self._pseudocount = pseudocount
@@ -114,7 +114,7 @@ class Model(object):  # TODO: move names to supermodel
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
 
         if normalize:
-            loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
+            #loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
             stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
 
         assert np.all(loglike < .0)
@@ -139,8 +139,13 @@ class Model(object):  # TODO: move names to supermodel
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data, normalize=False)
-        self.standard_deviation = np.asarray(np.sqrt(common.weighted_variance(ll, weights)), common.logprob_type)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(self.standard_deviation))
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights))
+        weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        combined_std = np.dot(std_per_class, relative_weight_per_class)
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        self.stdev = combined_std
         return dimchange
 
     @property
