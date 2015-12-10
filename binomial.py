@@ -78,18 +78,13 @@ class Model:
         self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=common.logprob_type)
         return False  # indicates whether a dimension change occurred
 
-    def log_likelihood(self, data, normalize=True):  # TODO: check and adjust formula
+    def log_likelihood(self, data):  # TODO: check and adjust formula
         assert data.num_features == self.num_features
         term1 = np.dot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
         assert np.all(~np.isnan(term2))
-        loglike = np.asarray(term1 + term2 + data.conterm, dtype=common.logprob_type)
-        #loglike = loglike/self.num_features  # normalize by number of samples  # deprecated due to normalization
-
-        #if normalize:
-            #loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
-            #stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
+        loglike = np.asarray(term1 + term2 + data.conterm, dtype=common.logprob_type)/self.num_features
 
         common.write_probmatrix(loglike, file=logfile)
 
@@ -125,7 +120,7 @@ class Model:
         stderr.write("params dtype: %s\n" % self.params.dtype)
 
         dimchange = self.update()  # create cache for likelihood calculations
-        ll = self.log_likelihood(data, normalize=False)
+        ll = self.log_likelihood(data)
         stderr.write("ll dtype: %s\n" % ll.dtype)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights))
         weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
