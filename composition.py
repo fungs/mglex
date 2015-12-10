@@ -103,7 +103,7 @@ class Model(object):  # TODO: move names to supermodel
         self._loglikes = np.log(self.variables)
         return False
 
-    def log_likelihood(self, data, normalize=True):
+    def log_likelihood(self, data):
         # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
         assert data.num_features == self.variables.shape[1]
         if self._pseudocount:
@@ -112,10 +112,6 @@ class Model(object):  # TODO: move names to supermodel
             loglike = np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
         else:
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
-
-        if normalize:
-            #loglike = loglike/self.standard_deviation  # normalize by setting stdev to one
-            stderr.write("Normalizing class likelihoods by factors %s\n" % common.pretty_probvector(1/self.standard_deviation))
 
         assert np.all(loglike < .0)
         return loglike
@@ -138,7 +134,7 @@ class Model(object):  # TODO: move names to supermodel
         self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
 
         dimchange = self.update()  # create cache for likelihood calculations
-        ll = self.log_likelihood(data, normalize=False)
+        ll = self.log_likelihood(data)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights))
         weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
         relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
