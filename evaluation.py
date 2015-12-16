@@ -54,6 +54,9 @@ def pairs(n):
 def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
     assert lmat.shape == pmat.shape
 
+    lmat = np.exp(lmat)
+    pmat = np.exp(pmat)
+
     n, c = lmat.shape
 
     # default blocksize set to input matrix size
@@ -103,6 +106,9 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
 def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
     assert lmat.shape == pmat.shape
 
+    lmat = np.exp(lmat)
+    pmat = np.exp(pmat)
+
     n, c = lmat.shape
 
     # default blocksize set to input matrix size
@@ -142,9 +148,6 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
         prob_sum += np.sum(block_prob_sum, axis=0, dtype=common.large_float_type)
         norm_term += np.sum(lprob, axis=0, dtype=common.large_float_type)
 
-    #print(common.pretty_probvector(prob_sum))
-    #print(common.pretty_probvector(norm_term))
-
     error = prob_sum/norm_term
 
     wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
@@ -153,14 +156,14 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
     return mse
 
 
-def twoclass_separation(lmat, pmat, weights):
+def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
     assert lmat.shape == pmat.shape
 
     c = lmat.shape[1]
     scores = np.zeros(c, dtype=common.large_float_type)
     sizes = np.zeros(c, dtype=common.large_float_type)
     for i in range(c):
-        r = pmat[:, (i,)]
+        r = np.exp(pmat[:, (i,)])
         wn = r * weights
         wn_sum = wn.sum()
         wn /= wn_sum
