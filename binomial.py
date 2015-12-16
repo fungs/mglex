@@ -99,7 +99,7 @@ class Model:
 
     def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
         # TODO: input as combined weights, not responsibilities and data.sizes
-        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
         #size_weights = data.sizes
 
         if cmask is None or cmask.shape == () or np.all(cmask):
