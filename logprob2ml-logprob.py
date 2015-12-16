@@ -6,16 +6,15 @@ Takes as input a vector of log-transformed probabilities and transforms it to ma
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
+import common
 import sys
 import numpy as np
 import signal
-#from itertools import chain
-from common import argmax
 
 if __name__ == "__main__":
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # handle broken pipes
 
-    min_log = float("-Inf")
+    min_log = common.logprob_type("-Inf")
 
     try:
         min_log = np.log(float(sys.argv[1]))
@@ -27,7 +26,7 @@ if __name__ == "__main__":
             continue
 
         fields = line.rstrip().split("\t")
-        vec_log = -np.asarray(fields, dtype=float)
+        vec_log = -np.asarray(fields, dtype=common.logprob_type)
         max_log = vec_log.max()
         if max_log >= min_log:
             mask = vec_log == max_log
