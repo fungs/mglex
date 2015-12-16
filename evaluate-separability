@@ -82,16 +82,19 @@ if __name__ == "__main__":
 
     #normalization = weight.sum(dtype=common.large_float_type)  # check for overflow
     n, c = likelihood.shape
-    scores = []
+    scores = np.zeros(c, dtype=common.large_float_type)
+    sizes = np.zeros(c, dtype=common.large_float_type)
 
     for i in range(c):
         r = responsibility[:, (i,)]
-        w1 = r * weight
-        w1 /= w1.sum()
-        w2 = (1.0 - r) * weight
-        w2 /= w2.sum()
+        wn = r * weight
+        wn_sum = wn.sum()
+        wn /= wn_sum
+        wa = (1.0 - r) * weight
+        wa /= wa.sum()
         l = likelihood[:, i]
-        scores.append(twoclass_separability(l, w1, w2))
+        scores[i] = twoclass_separability(l, wn, wa)
+        sizes[i] = wn_sum
 
-    scores = np.asarray(scores)
-    sys.stdout.write("%f\n" % np.sqrt(np.mean(scores**2)))
+    classpriors = sizes/sizes.sum()
+    sys.stdout.write("%f\n" % np.sqrt(np.sum((scores**2)*classpriors)))
