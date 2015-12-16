@@ -92,13 +92,12 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
         prob_sum += np.sum(block_prob_sum, axis=0, dtype=common.large_float_type)
         norm_term += np.sum(lprob, axis=0, dtype=common.large_float_type)
 
-    #print(common.pretty_probvector(prob_sum))
-    #print(common.pretty_probvector(norm_term))
+    error = prob_sum/norm_term
 
-    probs = prob_sum/norm_term
-
-    sys.stderr.write("%.2f\t%.2f\t%s\n" % (np.mean(probs), np.sum(probs**2), common.pretty_probvector(probs)))
-    return probs
+    wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    mse = np.sqrt(np.sum(error**2))
+    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mse
 
 
 def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
@@ -146,10 +145,69 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
     #print(common.pretty_probvector(prob_sum))
     #print(common.pretty_probvector(norm_term))
 
-    probs = prob_sum/norm_term
+    error = prob_sum/norm_term
 
-    sys.stderr.write("%.2f\t%.2f\t%s\n" % (np.mean(probs), np.sum(probs**2), common.pretty_probvector(probs)))
-    return probs
+    wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    mse = np.sqrt(np.sum(error**2))
+    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mse
+
+
+def twoclass_separation(lmat, pmat, weights):
+    assert lmat.shape == pmat.shape
+
+    c = lmat.shape[1]
+    scores = np.zeros(c, dtype=common.large_float_type)
+    sizes = np.zeros(c, dtype=common.large_float_type)
+    for i in range(c):
+        r = pmat[:, (i,)]
+        wn = r * weights
+        wn_sum = wn.sum()
+        wn /= wn_sum
+        wa = (1.0 - r) * weights
+        wa /= wa.sum()
+        l = lmat[:, i]
+        scores[i] = twoclass_separation_onecolumn(l, wn, wa)
+        sizes[i] = wn_sum
+
+    classpriors = sizes/sizes.sum()
+    wmean = np.sum(classpriors*scores)
+    mse = np.sqrt(np.sum((scores**2)*classpriors))
+    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(scores)))
+    return mse
+
+
+def twoclass_separation_onecolumn(like, weights_null, weights_alt):
+    # TODO: do cumulative arrays and array arithmetics
+    like = -like
+    order = np.argsort(like, axis=0)
+
+    error = 0.0
+    wn_cumulative = common.large_float_type(weights_null.sum())
+    wa_cumulative = common.large_float_type(0.0)
+
+    l_last = 0.0
+    step_size = 0.0
+    width = 0.0
+    for l, wn, wa, step in zip(like[order], weights_null[order], weights_alt[order], itertools.count()):  # TODO: stop loop when wn_cumulative == 0.0
+        step_size = l - l_last
+        if step_size > 0.0:
+            height = wn_cumulative * wa_cumulative
+            box = height * width
+            error += box
+            width = step_size
+            #print("Step %i: like=%.2f, wn_cum=%f, wa_cum=%f, height=%f, width=%f, box=%f, error=%f" % (step, l, wn_cumulative, wa_cumulative, height, width, box, error))
+
+        wn_cumulative -= wn
+        wa_cumulative += wa
+        l_last = l
+
+    common.assert_approx_equal(wa_cumulative, 1.0)
+    height = wn_cumulative * wa_cumulative
+    box = height * width
+    error += box
+    error /= l_last
+    return error
 
 
 if __name__ == "__main__":
