@@ -22,7 +22,7 @@ u"""
 
 Usage:
   classify-likelihood  (--help | --version)
-  classify-likelihood  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>]
+  classify-likelihood  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>]
 
   -h, --help                           Show this screen
   -v, --version                        Show version
@@ -30,6 +30,7 @@ Usage:
   -r <file>, --responsibility <file>   Responsibility (weight) matrix file
   -w <file>, --weight <file>           Weights (sequence length) file
   -m <method>, --method                Evaluation method; one of "separation", "co-clustering"
+  -s <int>, --subsample                Subsample this number of data points for speedup (only co-clustering)
 """
 
 
@@ -41,7 +42,7 @@ import common
 import numpy as np
 import sys
 
-methods = { "separation" : evaluation.twoclass_separation,
+methods = { "separation" : lambda l, p, w, s: evaluation.twoclass_separation(l, p, w),
             "co-clustering" : evaluation.expected_pairwise_clustering
             }
 
@@ -62,5 +63,5 @@ if __name__ == "__main__":
     responsibility = common.load_probmatrix_file(argument["--responsibility"])
     weight = common.load_seqlens_file(argument["--weight"])
 
-    score = methods[argument["--method"]](likelihood, responsibility, weight)
+    score = methods[argument["--method"]](likelihood, responsibility, weight, int(argument["--subsample"]))
     sys.stdout.write("%f\n" %score)
