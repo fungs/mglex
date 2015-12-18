@@ -22,7 +22,7 @@ u"""
 
 Usage:
   classify-likelihood  (--help | --version)
-  classify-likelihood  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>]
+  classify-likelihood  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>] [--random-seed <int>]
 
   -h, --help                           Show this screen
   -v, --version                        Show version
@@ -31,6 +31,7 @@ Usage:
   -w <file>, --weight <file>           Weights (sequence length) file
   -m <method>, --method                Evaluation method; one of "separation", "co-clustering"
   -s <int>, --subsample                Subsample this number of data points for speedup (only co-clustering)
+  -z <int>, --random-seed                     Seed for random operations
 """
 
 
@@ -39,7 +40,6 @@ __version__ = "bla"
 
 import evaluation
 import common
-import numpy as np
 import sys
 
 methods = { "separation" : lambda l, p, w, s: evaluation.twoclass_separation(l, p, w),
@@ -52,6 +52,7 @@ if __name__ == "__main__":
     argument = docopt(__doc__, version=__version__)
     common.handle_broken_pipe()
 
+    common.set_random_seed(int(argument["--random-seed"]))
 
     # load input
     likelihood_filename = argument["--likelihood"]
