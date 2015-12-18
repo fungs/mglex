@@ -177,6 +177,10 @@ def random_probarray(size):  # TODO: refine
     return tmp/tmp.sum()
 
 
+def set_random_seed(seed):
+    np.random.seed(seed)
+
+
 def argmax(s, n=1):
     get_second = itemgetter(1)
     max_store = sorted(list(enumerate(s[:n])), key=get_second, reverse=True)
