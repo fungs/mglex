@@ -48,9 +48,17 @@ if __name__ == "__main__":
                 ("--labels", labeldist, {})):
 
         filename = argument[arg]
+
         if filename:
-            data_obj = submodule.load_data_file(filename, **data_opts)
+            model_obj = model[len(data)]
+            # print(model_obj.context, file=sys.stderr)
+            # print(model_obj.labels, file=sys.stderr)
+            data_obj = submodule.load_data_file(filename, context=model_obj.context, **data_opts)
+            # print(model_obj.context, file=sys.stderr)
+            # print(model_obj.labels, file=sys.stderr)
+            model_obj.update_context()
             data.append(data_obj)
+            # print(data_obj.context, file=sys.stderr)
 
     # TODO: assert that the data types fit the models
 

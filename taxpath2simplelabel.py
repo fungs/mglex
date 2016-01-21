@@ -5,8 +5,8 @@ u"""
 
  -h --help    show this
 
- Reads a two-column file (1. taxon path separated by ",", 2. weight) and converts it to a one-column
- format (1. contig name, 2. short path with weight) which is best suited for re-weighing the label types before
+ Reads a two-column file (1. taxon path separated by ";", 2. weight) and converts it to a one-column
+ format (short path with weight) which is best suited for re-weighing the label types before
  using the information for probabilistic modelling.
 
  Example output column:

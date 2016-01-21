@@ -673,9 +673,11 @@ class InternalTreeIndex:
 
 class NestedCountIndex:  # TODO: implement using NestedDict
     def __init__(self):
-        fn = lambda: defaultdict(fn)
-        self._store = fn()
+        self._store = self._fn()
         self._size = 0
+
+    def _fn(self):
+        return defaultdict(self._fn)
 
     def __getitem__(self, itemseq):
         current = self._store

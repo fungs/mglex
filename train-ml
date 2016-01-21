@@ -61,10 +61,12 @@ if __name__ == "__main__":
         filename = argument[arg]
         if filename:
             data_obj = submodule.load_data_file(filename, **data_opts)
-            model_obj = submodule.empty_model(c, data_obj)
-            assert data_obj.num_data == n  # TODO: put simple checks into model functions
+            model_obj = submodule.empty_model(c, context=data_obj.context)
+            assert data_obj.num_data == n  # TODO: put simple checks into model functions or context
             data.append(data_obj)
             model.append(model_obj)
+            # print(data_obj.context, file=sys.stderr)
+            # print(model_obj.context, file=sys.stderr)
 
     # TODO: assert that the data types fit the models
 
