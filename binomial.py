@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-"""
+u"""
  This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
  We use a Binomial density to model the coverage per position which also handles low count values.
 """
@@ -22,13 +21,21 @@ from scipy.special import gammaln
 factorial = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
-class Data:
-    def __init__(self, sizes):
+class Context(object):
+    """Container for information which is shared between Data and Model"""
+
+    def __init__(self):
+        self.num_features = None
+
+
+class Data(object):
+    def __init__(self, sizes, context=Context()):
+        self.context = context
         self._covmeans = []  # TODO: use deque() for large append-only lists
         self.covmeans = None
         self.covmeanstotal = None
         self.conterm = None
-        self.sizes = sizes
+        self.sizes = sizes  # TODO: change to general weights argument in maximize_likelihood()
 
     def deposit(self, features):  # TODO: improve data parsing and handling
         coverage = np.array(features, dtype=self.mean_coverage_type)
@@ -45,6 +52,12 @@ class Data:
         self.conterm = factorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True)
 
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
+
+        if self.context.num_features is None:
+            self.context.num_features = self.num_features
+        else:
+            assert self.context.num_features == self.num_features
+
         return self
 
     @property
@@ -61,13 +74,19 @@ class Data:
     mean_coverage_type = np.float32
 
 
-class Model:
-    def __init__(self, params, initialize=True):
+class Model(object):
+    def __init__(self, params, context=Context(), initialize=True):
         #print(params.shape, file=stderr)
+        self.context = context
         self.params = np.array(params).T  # TODO: why pass transposed?
         self._params_sum = None
         self._params_log = None
         self._params_complement_log = None
+
+        if context.num_features is None:
+            context.num_features = self.num_features
+        else:
+            assert context.num_features == self.num_features
 
         if initialize:
             self.update()
@@ -122,17 +141,17 @@ class Model:
     _short_name = "BI_model"
 
 
-def empty_model(cluster_number, initial_data, **kwargs):
+def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
-    assert type(initial_data) == Data
-    params = np.zeros(shape=(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    assert type(context) == Context
+    params = np.zeros(shape=(cluster_number, context.num_features), dtype=common.prob_type)
     return Model(params, **kwargs)
 
 
-def random_model(cluster_number, initial_data, **kwargs):
+def random_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
-    assert type(initial_data) == Data
-    params = np.random.rand(cluster_number, initial_data.num_features)
+    assert type(context) == Context
+    params = np.random.rand(cluster_number, context.num_features)
     params /= params.sum(axis=1, keepdims=True)
     return Model(params, **kwargs)
 

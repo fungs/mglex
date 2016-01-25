@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-"""
+u"""
 This file holds all the functions and types necessary for probabilistic modelling of DNA composition.
 """
 
@@ -15,8 +14,16 @@ from sys import stderr, exit
 logfile = open("coverage.log", "w")
 
 
-class Data(object):
+class Context(object):
+    """Container for information which is shared between Data and Model"""
+
     def __init__(self):
+        self.num_features = None
+
+
+class Data(object):
+    def __init__(self, context=Context()):
+        self.context = context
         self._frequencies = []  # TODO: use deque() for large append-only lists
         self.sizes = None
         self.frequencies = None
@@ -36,6 +43,8 @@ class Data(object):
         common.newline(file=logfile)
         self.frequencies = common.prob_type(self.frequencies/self.sizes)  # TODO: why does /= not work?
         common.assert_probmatrix(self.frequencies)
+
+        self.context.num_features = self.num_features
         return self
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -58,12 +67,18 @@ class Data(object):
 
 
 class Model(object):  # TODO: move names to supermodel
-    def __init__(self, variables, names, initialize=True, pseudocount=False):  # TODO: add pseudocount implementation
+    def __init__(self, variables, names, context=Context(), initialize=True, pseudocount=False):  # TODO: add pseudocount implementation
+        self.context = context
         self.names = names
         self.variables = variables
         self._fmask = None
         self._loglikes = None
         self._pseudocount = pseudocount
+
+        if context.num_features is None:
+            context.num_features = self.num_features
+        else:
+            assert context.num_features == self.num_features
 
         if initialize:
             self.variables = common.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # normalize
@@ -104,7 +119,7 @@ class Model(object):  # TODO: move names to supermodel
 
     def log_likelihood(self, data):
         # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
-        assert data.num_features == self.variables.shape[1]
+        assert data.num_features == self.num_features  # TODO: do not test with every call, instead check context equality?
         if self._pseudocount:
             stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
             exit(1)
@@ -137,6 +152,10 @@ class Model(object):  # TODO: move names to supermodel
         assert self._fmask is not None
         return sum(self._fmask)
 
+    @property
+    def num_features(self):
+        return self.variables.shape[1]  # TODO: check dimension!
+
     _short_name = "NB_model"
 
 
@@ -161,17 +180,17 @@ def load_model_tuples(inseq, **kwargs):  # TODO: make generic
 # TODO: add load_data from generic with data-specific parse_line function
 load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines_comma(i), **kwargs)  # TODO: move to model class?
 
-def random_model(cluster_number, initial_data, **kwargs):
+def random_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
-    assert type(initial_data) == Data
-    initial_freqs = np.asarray(np.random.rand(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    assert type(context) == Context
+    initial_freqs = np.asarray(np.random.rand(cluster_number, context.num_features), dtype=common.prob_type)
     return Model(initial_freqs, list(map(str, list(range(cluster_number)))), **kwargs)
 
 
-def empty_model(cluster_number, initial_data, **kwargs):
+def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
-    assert type(initial_data) == Data
-    initial_freqs = np.ones(shape=(cluster_number, initial_data.num_features), dtype=common.prob_type)
+    assert type(context) == Context
+    initial_freqs = np.ones(shape=(cluster_number, context.num_features), dtype=common.prob_type)
     return Model(initial_freqs, list(map(str, list(range(cluster_number)))), initialize=False, **kwargs)
 
 
