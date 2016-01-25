@@ -114,16 +114,28 @@ class Model(object):  # TODO: move names to supermodel
         assert np.all(loglike < .0)
         return loglike
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: use seqlen for weighting of kmers in maximization
+    def maximize_likelihood(self, responsibilities, data, cmask=None):
         common.assert_probmatrix(data.frequencies)  # TODO: remove
+        common.assert_probmatrix(responsibilities)  # TODO: remove
 
-        if cmask is not None:  # shrink number of clusters
+        if cmask is not None:
             responsibilities = responsibilities[:, cmask]
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
 
-        self.variables = np.dot(responsibilities.T, data.frequencies)  # TODO: remove double normalization in update()
-        self.variables = common.prob_type(self.variables/responsibilities.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
-        return self.update()
+        weights = responsibilities*data.sizes
+        #assert weights.shape == responsibilities.shape
+
+        self.variables = np.dot(weights.T, data.frequencies)  # TODO: consider data types (becomes float64?)
+        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True).T)  # normalize before update
+
+        # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
+        # common.print_probvector(self.variables.sum(axis=1))
+        # common.print_vector(responsibilities.sum(axis=0))
+        # common.print_probvector(self.variables[0, :])
+        # common.print_probvector(self.variables[-1, :])
+        # common.newline()
+        # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
+        return self.update()  # TODO: fix double normalization in update()
 
     @property
     def num_components(self):
