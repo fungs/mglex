@@ -59,8 +59,8 @@ class UniversalData(list):  # TODO: rename CompositeData
     def num_features(self):
         return super(UniversalData, self).__len__()
 
-    def __len__(self):
-        return self.num_data   # TODO: select an intuitive convention for this
+    #def __len__(self):
+    #    return self.num_data   # TODO: select an intuitive convention for this
 
     size_type = size_type
 

@@ -96,6 +96,9 @@ class Model(object):
         self._params_complement_log = np.log(1. - self.params)
         return False  # indicates whether a dimension change occurred
 
+    def update_context(self):  # TODO: implement proper context support
+        pass
+
     def log_likelihood(self, data):  # TODO: check and adjust formula
         assert data.num_features == self.num_features
         term1 = np.dot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?

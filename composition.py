@@ -117,6 +117,9 @@ class Model(object):  # TODO: move names to supermodel
         self._loglikes = np.log(self.variables)
         return False
 
+    def update_context(self):  # TODO: implement proper context support
+        pass
+
     def log_likelihood(self, data):
         # stderr.write("data dimension: %s, loglike dimension: %s\n" % (data.frequencies.shape, self._loglikes.shape))
         assert data.num_features == self.num_features  # TODO: do not test with every call, instead check context equality?
