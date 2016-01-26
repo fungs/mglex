@@ -17,7 +17,7 @@ u"""
  1.2.3:100
 
  Example output:
- 1:100,1.2:200,1.2.3:300
+ 1:100 1.2:200 1.2.3:300
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
@@ -41,9 +41,9 @@ def calc_path_weigths_linear(path, weight):
 
 path_string = lambda path: ".".join(path)
 path_weigth_string = lambda path, weight: "%s:%i" % (path_string(path), weight)
-simpleweight_string_sorted = lambda path, weight: ",".join(path_weigth_string(p, w)
+simpleweight_string_sorted = lambda path, weight: " ".join(path_weigth_string(p, w)
                                                              for p, w in sorted(total_per_path.items()))
-simpleweight_string_unsorted = lambda path, weight: ",".join(path_weigth_string(p, w)
+simpleweight_string_unsorted = lambda path, weight: " ".join(path_weigth_string(p, w)
                                                            for p, w in total_per_path.items())
 
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         # for non-empty labels
         if line:
             total_per_path = defaultdict(lambda: 0)
-            for entry in line.split(","):
+            for entry in line.split(" "):
                 path, weight = entry.split(":", 2)[:2]
                 weight = int(weight)
                 for p, w in calc_path_weigths_linear(path, weight):
