@@ -20,7 +20,7 @@ label_index_type = np.uint32  # TODO: check range
 support_type = np.uint64  # TODO: check range
 
 
-class Context:
+class Context(object):
     """Container for information which is shared between Data and Model"""
 
     def __init__(self):
@@ -35,7 +35,7 @@ class Context:
         return len(self.labels)
 
 
-class Data:  # TODO: use deque() for large append-only lists
+class Data(object):  # TODO: use deque() for large append-only lists
     """Data container for hierarchical label type data"""
 
     def __init__(self, context=Context()):
@@ -114,7 +114,7 @@ class Data:  # TODO: use deque() for large append-only lists
         return self.num_data
 
 
-class Model:
+class Model(object):
     """A variant of a Naïve Bayes classifier model for hierarchical labels"""
 
     def __init__(self, params, context, initialize=True, pseudocount=True):
