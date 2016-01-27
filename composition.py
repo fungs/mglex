@@ -71,6 +71,7 @@ class Model(object):  # TODO: move names to supermodel
         self.context = context
         self.names = names
         self.variables = variables
+        self.stdev = None
         self._fmask = None
         self._loglikes = None
         self._pseudocount = pseudocount
@@ -129,6 +130,7 @@ class Model(object):  # TODO: move names to supermodel
             loglike = np.dot(data.frequencies, self._loglikes.T)  #/ common.prob_type(data.sizes.T)  # TODO: add to fmask version below
         else:
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
+
         assert np.all(loglike < .0)
         return loglike
 
@@ -136,24 +138,30 @@ class Model(object):  # TODO: move names to supermodel
         common.assert_probmatrix(data.frequencies)  # TODO: remove
         common.assert_probmatrix(responsibilities)  # TODO: remove
 
-        if cmask is not None:
-            responsibilities = responsibilities[:, cmask]
+        # TODO: input as combined weights, not responsibilities and data.sizes
+        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+
+        if cmask is None or cmask.shape == () or np.all(cmask):
+            weights = responsibilities * size_weights
+        else:
+            weights = responsibilities[:, cmask] * size_weights
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
 
-        weights = responsibilities*data.sizes
-        #assert weights.shape == responsibilities.shape
+        stderr.write("weights dtype: %s\n" % weights.dtype)
 
-        self.variables = np.dot(weights.T, data.frequencies)  # TODO: consider data types (becomes float64?)
-        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True).T)  # normalize before update
+        self.variables = np.dot(weights.T, data.frequencies)  # TODO: remove double normalization in update()
+        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
 
-        # print("maximum likelihood model composition for %i clusters and %i features:" % self.variables.shape)
-        # common.print_probvector(self.variables.sum(axis=1))
-        # common.print_vector(responsibilities.sum(axis=0))
-        # common.print_probvector(self.variables[0, :])
-        # common.print_probvector(self.variables[-1, :])
-        # common.newline()
-        # stderr.write("LOG M: Frequency sum: %.2f\n" % self.variables.sum())
-        return self.update()  # TODO: fix double normalization in update()
+        dimchange = self.update()  # create cache for likelihood calculations
+        ll = self.log_likelihood(data)
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights))
+        weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        combined_std = np.dot(std_per_class, relative_weight_per_class)
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        self.stdev = combined_std
+        return dimchange
 
     @property
     def num_components(self):
