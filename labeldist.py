@@ -208,11 +208,12 @@ class Model(object):
             for i in self.params[indices].argmax(axis=0):
                 yield str(i)
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
+    def maximize_likelihood(self, data, responsibilities, weights, cmask=None):  # TODO: unite responsibilities and weights and change everywhere
+        # TODO: input as combined weights, not responsibilities and data.sizes
+        # size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
+        # size_weights = data.sizes
+
         if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
-            # print(cmask)
-            # print(self.params.shape)
-            self.params = self.params[:, cmask]
             responsibilities = responsibilities[:, cmask]
             self.params = self.params[:, cmask]
 
@@ -231,12 +232,23 @@ class Model(object):
             # print(support_col[:, np.newaxis], file=stderr)
             # print(np.dot(support_col[:, np.newaxis], res[np.newaxis, :]), file=stderr)
             self.params[index_col] += np.dot(support_col[:, np.newaxis], res[np.newaxis, :])  # TODO: check shape match
-
             # print(index_col, file=stderr)
             # print([self.labels[i] for i in index_col], file=stderr)
             # print(self.params[index_col], file=stderr)
 
-        return self.update()
+        weights_combined = responsibilities * weights
+
+        dimchange = self.update()  # create cache for likelihood calculations
+        ll = self.log_likelihood(data)
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        combined_std = np.dot(std_per_class, relative_weight_per_class)
+        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
+        self.stdev = combined_std
+        return dimchange, ll
 
     @property
     def num_components(self):

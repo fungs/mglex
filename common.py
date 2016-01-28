@@ -87,8 +87,7 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
     def log_likelihood(self, data):
         #assert self.weights.size == len(self)
 
-
-        ll_scale = np.asarray([m.stdev for m in self])
+        ll_scale = np.asarray([m.stdev if m.stdev > 0.0 else 0.1 for m in self])  # stdev of zero is not allowed, quick workaround!
         ll_weights = (ll_scale.sum()/ll_scale.size**2)/ll_scale
         ll_per_model = np.asarray([w*m.log_likelihood(d) for (m, d, w) in zip(self, data, ll_weights)])  # TODO: reduce memory usage, de-normalize scale
 
@@ -96,34 +95,24 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
         l = np.sum(ll_per_model, axis=1, dtype=large_float_type)  # TODO: remove debug calculations
 
         for m, mvec, lvec in zip(self, s, l):  # TODO: save memory
-            print(m._short_name, "***", pretty_probvector(mvec), "***", pretty_probvector(lvec), file=stderr)
+            stderr.write("LOG %s: average likelihood %s *** %s\n" % (m._short_name, pretty_probvector(mvec), pretty_probvector(lvec)))
 
         loglike = np.sum(ll_per_model, axis=0, keepdims=False)  # TODO: serialize
         return loglike
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):
-        tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?
+    def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
+
+        loglikelihood = np.zeros(shape=(data.num_data, self.num_components), dtype=logprob_type)
+        return_value = False
+        for m, d in zip(self, data):
+            ret, ll = m.maximize_likelihood(d, responsibilities, weights, cmask)
+            ll = loglikelihood + ll
+            return_value = return_value and ret
+
+        # tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?
         # ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
 
-        # TODO: assert that total likelihood calculation is consistent
-
-        # # ECM variant for weight optimization
-        # if len(self.weights > 1):
-        #     iteration = count()
-        #     total_joint = total_likelihood(self._sharpness * np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model]).sum(axis=0, keepdims=False))
-        #     while next(iteration) < 10:
-        #         weights_new = random_probarray(len(self))[:, np.newaxis, np.newaxis]  # TODO: suggest from neighborhood instead of random
-        #         # print_probvector(weights_new, stderr)
-        #         total_joint_new = total_likelihood(self._sharpness * np.asarray([np.log(exp_normalize(ll)) for ll in self.weights * ll_per_model]).sum(axis=0, keepdims=False))
-        #         # stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_joint_new, total_joint_new - total_joint, pretty_probvector(weights_new)))
-        #         if total_joint_new > total_joint:
-        #             self.weights = weights_new
-        #             stderr.write("LOG ECM #: -- | LL: %i | Δ: %.2f | weights: %s\n" % (total_joint_new, total_joint_new - total_joint, pretty_probvector(self.weights)))
-        #             break
-        #     # print_probvector(self.weights, stderr)
-
-        # maximize the weights as well, need to return likelihood in previous function call?
-        return any(tmp)
+        return return_value, loglikelihood
 
 
 def parse_lines(lines):
@@ -249,26 +238,25 @@ def weighted_variance(data, weights, axis=0, dtype=None):
         #weights = np.asarray(weights, dtype=dtype)
 
     # shift data to prevent type overflow
-    stderr.write("old mean %s\nold min %s\nold max %s\nold sum %s\n" %
-                 (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
-                  pretty_probvector(np.min(data, axis=axis)),
-                  pretty_probvector(np.max(data, axis=axis)),
-                  pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
+    # stderr.write("old mean %s\nold min %s\nold max %s\nold sum %s\n" %
+    #              (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
+    #               pretty_probvector(np.min(data, axis=axis)),
+    #               pretty_probvector(np.max(data, axis=axis)),
+    #               pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
 
-    stderr.write("data dtype before: %s\n" % data.dtype)
+    # stderr.write("data dtype before: %s\n" % data.dtype)
     data = data - np.asarray(np.mean(data, dtype=large_float_type, axis=axis), dtype=original_dtype)
-    stderr.write("data dtype after: %s\n" % data.dtype)
+    # stderr.write("data dtype after: %s\n" % data.dtype)
 
-    stderr.write("new mean %s\nnew min %s\nnew max %s\nnew sum %s\n" %
-                 (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
-                  pretty_probvector(np.min(data, axis=axis)),
-                  pretty_probvector(np.max(data, axis=axis)),
-                  pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
-
+    # stderr.write("new mean %s\nnew min %s\nnew max %s\nnew sum %s\n" %
+    #              (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
+    #               pretty_probvector(np.min(data, axis=axis)),
+    #               pretty_probvector(np.max(data, axis=axis)),
+    #               pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
 
     data_weighted_mean = np.average(np.asarray(data, dtype=np.float32), weights=weights, axis=axis)  # TODO: re-implement with accumulator dtype
     data_weighted_var = np.average((data - data_weighted_mean)**2, weights=weights, axis=0)  # TODO: re-implement with accumulator dtype
-    stderr.write("var return dtype: %s\n" % data_weighted_var.dtype)
+    # stderr.write("var return dtype: %s\n" % data_weighted_var.dtype)
     return np.asarray(data_weighted_var, dtype=original_dtype)
 
 

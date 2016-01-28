@@ -119,39 +119,34 @@ class Model(object):
         for i in indices:
             yield "-".join(("%i" % round(v) for v in np.asarray(self.params)[:, i]))
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
+    def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
         # TODO: input as combined weights, not responsibilities and data.sizes
-        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
-        #size_weights = data.sizes
+        # size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
+        # size_weights = data.sizes
 
-        if cmask is None or cmask.shape == () or np.all(cmask):
-            weights = responsibilities * size_weights
-        else:
-            weights = responsibilities[:, cmask] * size_weights
+        if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
+            responsibilities = responsibilities[:, cmask]
 
-        stderr.write("weights dtype: %s\n" % weights.dtype)
+        weights_combined = responsibilities * weights
 
-        weighted_meancoverage_samples = np.dot(data.covmeans.T, weights)  # TODO: use np.average?
-        weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights)  # TODO: use np.average? simplify?
-
-        stderr.write("meancov dtype: %s/%s\n" % (weighted_meancoverage_samples.dtype, weighted_meancoverage_total.dtype))
+        weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
+        weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights_combined)  # TODO: use np.average? simplify?
 
         pseudocount = 0.0000000001  # TODO: refine
         self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
                                  dtype=common.prob_type)  # introduced pseudocounts
-        stderr.write("params dtype: %s\n" % self.params.dtype)
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
-        stderr.write("ll dtype: %s\n" % ll.dtype)
-        std_per_class = np.sqrt(common.weighted_variance(ll, weights))
-        weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
         relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
-        stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
         self.stdev = combined_std
-        return dimchange
+        return dimchange, ll
 
     @property
     def num_components(self):
