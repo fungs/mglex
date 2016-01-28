@@ -134,34 +134,31 @@ class Model(object):  # TODO: move names to supermodel
         assert np.all(loglike < .0)
         return loglike
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):
-        common.assert_probmatrix(data.frequencies)  # TODO: remove
-        common.assert_probmatrix(responsibilities)  # TODO: remove
-
+    def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
         # TODO: input as combined weights, not responsibilities and data.sizes
-        size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+        # size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
+        # size_weights = data.sizes
 
-        if cmask is None or cmask.shape == () or np.all(cmask):
-            weights = responsibilities * size_weights
-        else:
-            weights = responsibilities[:, cmask] * size_weights
+        if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
+            responsibilities = responsibilities[:, cmask]
             self.names = list(compress(self.names, cmask))  # TODO: make self.names a numpy array?
 
-        stderr.write("weights dtype: %s\n" % weights.dtype)
+        weights_combined = responsibilities * weights
 
-        self.variables = np.dot(weights.T, data.frequencies)  # TODO: remove double normalization in update()
-        self.variables = common.prob_type(self.variables/weights.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
+        self.variables = np.dot(weights_combined.T, data.frequencies)  # TODO: remove double normalization in update()
+        self.variables = common.prob_type(self.variables/weights_combined.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
-        std_per_class = np.sqrt(common.weighted_variance(ll, weights))
-        weight_per_class = weights.sum(axis=0, dtype=common.large_float_type)
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
         relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
-        stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
         self.stdev = combined_std
-        return dimchange
+        return dimchange, ll
 
     @property
     def num_components(self):

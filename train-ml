@@ -69,6 +69,6 @@ if __name__ == "__main__":
             # print(model_obj.context, file=sys.stderr)
 
     # TODO: assert that the data types fit the models
-
-    model.maximize_likelihood(responsibility, data)
+    weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+    model.maximize_likelihood(data, responsibility, weights)
     common.write_model_file(model, argument["--outmodel"])
