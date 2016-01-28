@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
-
 u"""
 This file contains helper functions and types.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
+from . import types
 import numpy as np
 import math
 from numpy.testing import assert_approx_equal
@@ -15,12 +14,6 @@ from itertools import count, filterfalse, chain
 from collections import defaultdict, deque
 from sys import stderr, stdout
 import pickle
-
-# common data types
-prob_type = np.float16
-logprob_type = np.float16
-large_float_type = np.float32
-size_type = np.uint32
 
 
 class UniversalData(list):  # TODO: rename CompositeData
@@ -58,7 +51,7 @@ class UniversalData(list):  # TODO: rename CompositeData
     def num_features(self):
         return super(UniversalData, self).__len__()
 
-    size_type = size_type
+    size_type = types.seqlen_type
 
 
 class UniversalModel(list):  # TODO: rename CompositeModel, implement update() and maximize_likelihood()
@@ -88,7 +81,7 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
         ll_per_model = np.asarray([w*m.log_likelihood(d) for (m, d, w) in zip(self, data, ll_weights)])  # TODO: reduce memory usage, de-normalize scale
 
         s = np.mean(np.exp(ll_per_model), axis=1)  # TODO: remove debug calculations
-        l = np.sum(ll_per_model, axis=1, dtype=large_float_type)  # TODO: remove debug calculations
+        l = np.sum(ll_per_model, axis=1, dtype=types.large_float_type)  # TODO: remove debug calculations
 
         for m, mvec, lvec in zip(self, s, l):  # TODO: save memory
             stderr.write("LOG %s: average likelihood %s *** %s\n" % (m._short_name, pretty_probvector(mvec), pretty_probvector(lvec)))
@@ -98,7 +91,7 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
 
     def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
 
-        loglikelihood = np.zeros(shape=(data.num_data, self.num_components), dtype=logprob_type)
+        loglikelihood = np.zeros(shape=(data.num_data, self.num_components), dtype=types.logprob_type)
         return_value = False
         for m, d in zip(self, data):
             ret, ll = m.maximize_likelihood(d, responsibilities, weights, cmask)
@@ -217,7 +210,7 @@ def weighted_variance(data, weights, axis=0, dtype=None):
     #               pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
 
     # stderr.write("data dtype before: %s\n" % data.dtype)
-    data = data - np.asarray(np.mean(data, dtype=large_float_type, axis=axis), dtype=original_dtype)
+    data = data - np.asarray(np.mean(data, dtype=types.large_float_type, axis=axis), dtype=original_dtype)
     # stderr.write("data dtype after: %s\n" % data.dtype)
 
     # stderr.write("new mean %s\nnew min %s\nnew max %s\nnew sum %s\n" %
@@ -260,7 +253,7 @@ def seeds2indices(seqnames, seeds):  # TODO: deprecated -> remove
 
 
 def responsibilities_from_seeds(seed_indices, num_data):  # TODO: deprecated -> remove
-    responsibilities = np.zeros((num_data, len(seed_indices)), dtype=prob_type)
+    responsibilities = np.zeros((num_data, len(seed_indices)), dtype=types.prob_type)
     for i, s in enumerate(seed_indices):
         responsibilities[list(s), i] = 1.  # TODO: index with numpy array instead of list?
     return responsibilities
@@ -275,7 +268,7 @@ def seeds2classindex(seeds):
 def seeds2responsibility_iter(seqnames, seeds):
     seeds = list(seeds)
     lookup = seeds2classindex(seeds)
-    template = np.log(np.zeros(len(seeds), dtype=prob_type))
+    template = np.log(np.zeros(len(seeds), dtype=types.prob_type))
     for name in seqnames:
         index = lookup.get(name, None)
         row = template.copy()
@@ -319,8 +312,8 @@ def load_seeds(iterable):
 
 load_seeds_file = lambda filename: load_seeds(open(filename, "r"))
 
-load_seqlens_iter = lambda lines: (size_type(line.rstrip()) for line in lines)
-load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=size_type)[:, np.newaxis]
+load_seqlens_iter = lambda lines: (types.seqlen_type(line.rstrip()) for line in lines)
+load_seqlens = lambda lines: np.fromiter(load_seqlens_iter(lines), dtype=types.seqlen_type)[:, np.newaxis]
 load_seqlens_file = lambda filename: load_seqlens(open(filename, "r"))
 
 load_seqnames_iter = lambda lines: (line.rstrip() for line in lines)
@@ -332,18 +325,18 @@ load_model_file = lambda filename: load_model(open(filename, "rb"))
 write_model = pickle.dump
 write_model_file = lambda model, filename: write_model(model, open(filename, "wb"))
 
-load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=logprob_type) for line in lines)
+load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=types.logprob_type) for line in lines)
 load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
 load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
 
 def write_probmatrix_iter(rows, file=stdout):
-    trans = lambda row: -np.asarray(row, dtype=logprob_type)
+    trans = lambda row: -np.asarray(row, dtype=types.logprob_type)
     for row in map(np.asarray, rows):
         file.write("\t".join(["%.2f" % i for i in trans(row)]))
         file.write("\n")
 
 def write_probmatrix(mat, file=stdout):
-    mat = -np.asarray(mat, logprob_type)
+    mat = -np.asarray(mat, types.logprob_type)
     for row in mat:
         file.write("\t".join(["%.2f" % i for i in row]))
         file.write("\n")

@@ -4,7 +4,7 @@ Submodule with all evaluation-related code.
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-import common
+from . import common
 import itertools
 import numpy as np
 import sys

@@ -9,9 +9,9 @@ u"""
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-import common
+from .. import common, types
 import numpy as np
-from collections import deque
+# from collections import deque
 from sys import argv, exit, stdin, stdout, stderr, exit
 
 # label data type
@@ -156,7 +156,7 @@ class Model(object):
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check
-        loglike = np.empty((len(data), self.num_components), dtype=common.logprob_type)
+        loglike = np.empty((len(data), self.num_components), dtype=types.logprob_type)
         for i, (indexcol, supportcol) in enumerate(data.labels):  # TODO: vectorize 3d?
 
             if not indexcol.size:  # no label == no observation == perfect fit
@@ -239,8 +239,8 @@ class Model(object):
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
-        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
-        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
         # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
         # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)

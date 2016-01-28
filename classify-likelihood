@@ -26,26 +26,23 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import common
-import composition
-import binomial
-import labeldist
+import bugsator as bugs
 import numpy as np
 import sys
 
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    common.handle_broken_pipe()
+    bugs.common.handle_broken_pipe()
 
-    seqlen = common.load_seqlens_file(argument["--seqlen"])
-    model = common.load_model_file(argument["--model"])
-    data = common.UniversalData()
+    seqlen = bugs.common.load_seqlens_file(argument["--seqlen"])
+    model = bugs.common.load_model_file(argument["--model"])
+    data = bugs.common.UniversalData()
 
     for arg, submodule, data_opts in (
-                ("--coverage", binomial, {}),
-                ("--composition", composition, {}),
-                ("--labels", labeldist, {})):
+                ("--coverage", bugs.models.binomial, {}),
+                ("--composition", bugs.models.naive_bayes, {}),
+                ("--labels", bugs.models.hierarchic_naive_bayes, {})):
 
         filename = argument[arg]
 
@@ -63,7 +60,7 @@ if __name__ == "__main__":
     mat = model.log_likelihood(data)
 
     if argument["--normalize"]:
-        mat = common.exp_normalize(mat)
-        common.write_probmatrix(np.log(mat, dtype=common.logprob_type), file=sys.stdout)
+        mat = bugs.common.exp_normalize(mat)
+        bugs.common.write_probmatrix(np.log(mat, dtype=bugs.types.logprob_type), file=sys.stdout)
     else:
-        common.write_probmatrix(mat, file=sys.stdout)
+        bugs.common.write_probmatrix(mat, file=sys.stdout)
