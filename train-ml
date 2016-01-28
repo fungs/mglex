@@ -26,10 +26,7 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import common
-import composition
-import binomial
-import labeldist
+import bugsator as bugs
 import numpy as np
 import sys
 
@@ -37,25 +34,25 @@ import sys
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    common.handle_broken_pipe()
+    bugs.common.handle_broken_pipe()
 
     responsibility_filename = argument["--responsibility"]
     if responsibility_filename:
-        responsibility = common.load_probmatrix_file(responsibility_filename)
+        responsibility = bugs.common.load_probmatrix_file(responsibility_filename)
     else:
-        responsibility = common.load_probmatrix(sys.stdin)
-    responsibility = np.exp(responsibility, dtype=common.prob_type)
+        responsibility = bugs.common.load_probmatrix(sys.stdin)
+    responsibility = np.exp(responsibility, dtype=bugs.types.prob_type)
 
     n, c = responsibility.shape
 
-    seqlen = common.load_seqlens_file(argument["--seqlen"])
-    data = common.UniversalData()
-    model = common.UniversalModel()
+    seqlen = bugs.common.load_seqlens_file(argument["--seqlen"])
+    data = bugs.common.UniversalData()
+    model = bugs.common.UniversalModel()
 
     for arg, submodule, data_opts in (
-                ("--coverage", binomial, {}),
-                ("--composition", composition, {}),
-                ("--labels", labeldist, {})):
+                ("--coverage", bugs.models.binomial, {}),
+                ("--composition", bugs.models.naive_bayes, {}),
+                ("--labels", bugs.models.hierarchic_naive_bayes, {})):
 
         filename = argument[arg]
         if filename:
@@ -67,6 +64,6 @@ if __name__ == "__main__":
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    weights = np.asarray(seqlen/seqlen.sum(), dtype=common.prob_type)
+    weights = np.asarray(seqlen/seqlen.sum(), dtype=bugs.types.prob_type)
     model.maximize_likelihood(data, responsibility, weights)
-    common.write_model_file(model, argument["--outmodel"])
+    bugs.common.write_model_file(model, argument["--outmodel"])

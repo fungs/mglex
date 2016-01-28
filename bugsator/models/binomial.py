@@ -7,7 +7,7 @@ u"""
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-import common
+from .. import common, types
 import numpy as np
 from sys import argv, exit, stdin, stdout, stderr, exit
 
@@ -48,7 +48,7 @@ class Data(object):
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = np.asarray(logfactorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=common.logprob_type)
+        self.conterm = np.asarray(logfactorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
 
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
 
@@ -92,8 +92,8 @@ class Model(object):
             self.update()
 
     def update(self):
-        self._params_log = np.asarray(np.log(self.params), dtype=common.logprob_type)
-        self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=common.logprob_type)
+        self._params_log = np.asarray(np.log(self.params), dtype=types.logprob_type)
+        self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=types.logprob_type)
         return False  # indicates whether a dimension change occurred
 
     def update_context(self):  # TODO: implement proper context support
@@ -105,7 +105,7 @@ class Model(object):
         assert np.all(~np.isnan(term1))
         term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
         assert np.all(~np.isnan(term2))
-        loglike = np.asarray(term1 + term2 + data.conterm, dtype=common.logprob_type)/self.num_features
+        loglike = np.asarray(term1 + term2 + data.conterm, dtype=types.logprob_type)/self.num_features
 
         common.write_probmatrix(loglike, file=logfile)
 
@@ -130,13 +130,13 @@ class Model(object):
 
         pseudocount = 0.0000000001  # TODO: refine
         self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
-                                 dtype=common.prob_type)  # introduced pseudocounts
+                                 dtype=types.prob_type)  # introduced pseudocounts
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
-        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
-        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
         # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
         # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
@@ -162,7 +162,7 @@ class Model(object):
 def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    params = np.zeros(shape=(cluster_number, context.num_features), dtype=common.prob_type)
+    params = np.zeros(shape=(cluster_number, context.num_features), dtype=types.prob_type)
     return Model(params, **kwargs)
 
 

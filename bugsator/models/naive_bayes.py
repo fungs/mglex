@@ -6,7 +6,7 @@ This file holds all the functions and types necessary for probabilistic modellin
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-import common
+from .. import common, types
 import numpy as np
 from itertools import compress
 from sys import stderr, exit
@@ -36,12 +36,12 @@ class Data(object):
 
     def prepare(self):
         self.frequencies = np.vstack(self._frequencies)
-        self.sizes = self.frequencies.sum(axis=1, keepdims=True, dtype=common.size_type)  # TODO: replace by global seqlen
+        self.sizes = self.frequencies.sum(axis=1, keepdims=True, dtype=types.seqlen_type)  # TODO: replace by global seqlen
         print("Data frequencies", file=logfile)
         common.print_vector(self.frequencies[0, :], file=logfile)  # TODO: remove
         common.print_vector(self.frequencies[-1, :], file=logfile)  # TODO: remove
         common.newline(file=logfile)
-        self.frequencies = common.prob_type(self.frequencies/self.sizes)  # TODO: why does /= not work?
+        self.frequencies = types.prob_type(self.frequencies/self.sizes)  # TODO: why does /= not work?
         common.assert_probmatrix(self.frequencies)
 
         self.context.num_features = self.num_features
@@ -82,7 +82,7 @@ class Model(object):  # TODO: move names to supermodel
             assert context.num_features == self.num_features
 
         if initialize:
-            self.variables = common.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # normalize
+            self.variables = types.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # normalize
             self.update()
 
     def update(self):
@@ -113,7 +113,7 @@ class Model(object):  # TODO: move names to supermodel
         # problem: update() is called after each maximize step
 
         self.variables += 1  # TODO: change code
-        self.variables = common.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory usage
+        self.variables = types.prob_type(self.variables/self.variables.sum(axis=1, keepdims=True))  # TODO: optimize memory usage
         common.assert_probmatrix(self.variables)
         self._loglikes = np.log(self.variables)
         return False
@@ -143,13 +143,13 @@ class Model(object):  # TODO: move names to supermodel
         weights_combined = responsibilities * weights
 
         self.variables = np.dot(weights_combined.T, data.frequencies)  # TODO: remove double normalization in update()
-        self.variables = common.prob_type(self.variables/weights_combined.sum(axis=0, keepdims=True, dtype=common.large_float_type).T)  # normalize before update
+        self.variables = types.prob_type(self.variables/weights_combined.sum(axis=0, keepdims=True, dtype=types.large_float_type).T)  # normalize before update
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
-        weight_per_class = weights_combined.sum(axis=0, dtype=common.large_float_type)
-        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=common.prob_type)
+        weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
         # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
         # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
@@ -200,14 +200,14 @@ load_model = lambda i, **kwargs: load_model_tuples(common.parse_lines_comma(i), 
 def random_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    initial_freqs = np.asarray(np.random.rand(cluster_number, context.num_features), dtype=common.prob_type)
+    initial_freqs = np.asarray(np.random.rand(cluster_number, context.num_features), dtype=types.prob_type)
     return Model(initial_freqs, list(map(str, list(range(cluster_number)))), **kwargs)
 
 
 def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    initial_freqs = np.ones(shape=(cluster_number, context.num_features), dtype=common.prob_type)
+    initial_freqs = np.ones(shape=(cluster_number, context.num_features), dtype=types.prob_type)
     return Model(initial_freqs, list(map(str, list(range(cluster_number)))), initialize=False, **kwargs)
 
 
