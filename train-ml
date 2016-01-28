@@ -49,12 +49,11 @@ if __name__ == "__main__":
     n, c = responsibility.shape
 
     seqlen = common.load_seqlens_file(argument["--seqlen"])
-    data = common.UniversalData(sizes=seqlen)
+    data = common.UniversalData()
     model = common.UniversalModel()
 
-    # TODO: remove data opts by passing seqlen weight vector
     for arg, submodule, data_opts in (
-                ("--coverage", binomial, {"sizes": seqlen}),
+                ("--coverage", binomial, {}),
                 ("--composition", composition, {}),
                 ("--labels", labeldist, {})):
 
@@ -68,7 +67,6 @@ if __name__ == "__main__":
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    # TODO: assert that the data types fit the models
-    weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)
+    weights = np.asarray(seqlen/seqlen.sum(), dtype=common.prob_type)
     model.maximize_likelihood(data, responsibility, weights)
     common.write_model_file(model, argument["--outmodel"])
