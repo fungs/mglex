@@ -135,9 +135,6 @@ class Model(object):  # TODO: move names to supermodel
         return loglike
 
     def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
-        # TODO: input as combined weights, not responsibilities and data.sizes
-        # size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
-        # size_weights = data.sizes
 
         if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
             responsibilities = responsibilities[:, cmask]

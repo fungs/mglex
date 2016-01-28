@@ -29,13 +29,12 @@ class Context(object):
 
 
 class Data(object):
-    def __init__(self, sizes, context=Context()):
+    def __init__(self, context=Context()):
         self.context = context
         self._covmeans = []  # TODO: use deque() for large append-only lists
         self.covmeans = None
         self.covmeanstotal = None
         self.conterm = None
-        self.sizes = sizes  # TODO: change to general weights argument in maximize_likelihood()
 
     def deposit(self, features):  # TODO: improve data parsing and handling
         coverage = np.array(features, dtype=self.mean_coverage_type)
@@ -120,9 +119,6 @@ class Model(object):
             yield "-".join(("%i" % round(v) for v in np.asarray(self.params)[:, i]))
 
     def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
-        # TODO: input as combined weights, not responsibilities and data.sizes
-        # size_weights = np.asarray(data.sizes/data.sizes.sum(), dtype=common.prob_type)  # TODO: don't redo this every time, pass weights directly
-        # size_weights = data.sizes
 
         if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
             responsibilities = responsibilities[:, cmask]

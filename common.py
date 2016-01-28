@@ -24,12 +24,12 @@ size_type = np.uint32
 
 
 class UniversalData(list):  # TODO: rename CompositeData
-    def __init__(self, *args, sizes: "column NumPy array or iterator", **kwargs):
+    def __init__(self, *args, **kwargs):
         super(UniversalData, self).__init__(*args, **kwargs)
-        try:
-            self.sizes = np.asarray(sizes, dtype=self.size_type)
-        except TypeError:
-            self.sizes = np.fromiter(sizes, dtype=self.size_type)[:, np.newaxis]
+        # try:
+        #     self.sizes = np.asarray(sizes, dtype=self.size_type)
+        # except TypeError:
+        #     self.sizes = np.fromiter(sizes, dtype=self.size_type)[:, np.newaxis]
 
     def deposit(self, features):
         # self.names.append(name)
@@ -41,7 +41,6 @@ class UniversalData(list):  # TODO: rename CompositeData
         for d in self:
             d.prepare()
         return self
-        #return [d.prepare() for d in self]  # TODO: return self without conversion to list by map
 
     @property
     def num_data(self):
@@ -58,9 +57,6 @@ class UniversalData(list):  # TODO: rename CompositeData
     @property
     def num_features(self):
         return super(UniversalData, self).__len__()
-
-    #def __len__(self):
-    #    return self.num_data   # TODO: select an intuitive convention for this
 
     size_type = size_type
 
@@ -108,10 +104,6 @@ class UniversalModel(list):  # TODO: rename CompositeModel, implement update() a
             ret, ll = m.maximize_likelihood(d, responsibilities, weights, cmask)
             ll = loglikelihood + ll
             return_value = return_value and ret
-
-        # tmp = (m.maximize_likelihood(responsibilities, d, cmask) for m, d in zip(self, data))  # TODO: needs to know weights?
-        # ll_per_model = np.asarray([m.log_likelihood(d) for (m, d) in zip(self, data)])
-
         return return_value, loglikelihood
 
 
@@ -121,26 +113,6 @@ def parse_lines(lines):
             continue
         yield line.rstrip()
 
-
-# def parse_lines_comma(lines):
-#     for fields in parse_lines(lines):
-#         fields[1:] = [s.split(",") for s in fields[1:]]  # TODO: remove name column from input
-#         yield tuple(fields)
-
-
-# def load_data_tuples(inseq, store):  # TODO: make dependent on data class
-#         names = []
-#         for record in inseq:
-#             names.append(record[0])
-#             features = record[1:]
-#             if len(features) > 0 and isinstance(features[0], Iterable) and not isinstance(store, UniversalData):  # hack to make this work for UniversalData and Data
-#                 store.parse_data(*features)
-#             else:
-#                 store.deposit(features)
-#         return names, store.prepare()
-
-
-#load_data = lambda lines, store: load_data_tuples(parse_lines_comma(lines), store)
 
 load_data = lambda lines, store: store.parse(parse_lines(lines))
 load_data_file = lambda filename, store: load_data(open(filename, "r"), store)

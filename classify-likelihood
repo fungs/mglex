@@ -40,10 +40,10 @@ if __name__ == "__main__":
 
     seqlen = common.load_seqlens_file(argument["--seqlen"])
     model = common.load_model_file(argument["--model"])
-    data = common.UniversalData(sizes=seqlen)
+    data = common.UniversalData()
 
     for arg, submodule, data_opts in (
-                ("--coverage", binomial, {"sizes": seqlen}),
+                ("--coverage", binomial, {}),
                 ("--composition", composition, {}),
                 ("--labels", labeldist, {})):
 
@@ -59,8 +59,6 @@ if __name__ == "__main__":
             model_obj.update_context()
             data.append(data_obj)
             # print(data_obj.context, file=sys.stderr)
-
-    # TODO: assert that the data types fit the models
 
     mat = model.log_likelihood(data)
 
