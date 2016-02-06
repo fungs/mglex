@@ -90,8 +90,9 @@ class Model(object):
             self.update()
 
     def update(self):
-        self._params_log = np.asarray(np.log(self.params), dtype=types.logprob_type)
-        self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=types.logprob_type)
+        with np.errstate(divide='ignore'):
+            self._params_log = np.asarray(np.log(self.params), dtype=types.logprob_type)
+            self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=types.logprob_type)
         return False  # indicates whether a dimension change occurred
 
     def update_context(self):  # TODO: implement proper context support

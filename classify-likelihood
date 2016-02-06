@@ -61,6 +61,7 @@ if __name__ == "__main__":
 
     if argument["--normalize"]:
         mat = mglex.common.exp_normalize(mat)
-        mglex.common.write_probmatrix(np.log(mat, dtype=mglex.types.logprob_type), file=sys.stdout)
+        with np.errstate(divide='ignore'):
+            mglex.common.write_probmatrix(np.log(mat, dtype=mglex.types.logprob_type), file=sys.stdout)
     else:
         mglex.common.write_probmatrix(mat, file=sys.stdout)
