@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages
-import os
-import re
-
-# def read_file(fname):
-#     return open(os.path.join(os.path.dirname(__file__), fname)).read()
-#
-#
-# def get_version(filename):
-#     verstrline = open(filename, "rt").read()
-#     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
-#     mo = re.search(VSRE, verstrline, re.M)
-#     if mo:
-#         return mo.group(1)
-#     else:
-#         raise RuntimeError("Unable to find version string in %s." % (filename,))
-#
-# def get_author(filename):
-#     pass
-
 
 setup(
     name='mglex',
