@@ -5,3 +5,8 @@ __pycache__/
 
 # transient backup
 *.bak
+
+# setuptools
+build/
+dist/
+*.egg-info
