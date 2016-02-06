@@ -4,7 +4,7 @@ Submodule with all evaluation-related code.
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from . import common
+from . import common, types
 import itertools
 import numpy as np
 import sys
@@ -79,8 +79,8 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
             n = lmat.shape[0]
 
 
-    prob_sum = np.zeros(c, dtype=common.large_float_type)
-    norm_term = np.zeros(c, dtype=common.large_float_type)
+    prob_sum = np.zeros(c, dtype=types.large_float_type)
+    norm_term = np.zeros(c, dtype=types.large_float_type)
 
     indices = itertools.combinations(range(n), 2)
 
@@ -88,12 +88,12 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
         i1, i2 = zip(*index_block)
 
         lprob = lmat.take(i1, axis=0) * lmat.take(i2, axis=0)
-        pprob = np.sum(pmat.take(i1, axis=0) * pmat.take(i2, axis=0), axis=1, keepdims=True, dtype=common.large_float_type)
+        pprob = np.sum(pmat.take(i1, axis=0) * pmat.take(i2, axis=0), axis=1, keepdims=True, dtype=types.large_float_type)
 
         block_prob_sum = lprob * pprob
 
-        prob_sum += np.sum(block_prob_sum, axis=0, dtype=common.large_float_type)
-        norm_term += np.sum(lprob, axis=0, dtype=common.large_float_type)
+        prob_sum += np.sum(block_prob_sum, axis=0, dtype=types.large_float_type)
+        norm_term += np.sum(lprob, axis=0, dtype=types.large_float_type)
 
     error = prob_sum/norm_term
 
@@ -130,8 +130,8 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
             pmat = pmat.compress(mask, axis=0)
             n = lmat.shape[0]
 
-    prob_sum = np.zeros(c, dtype=common.large_float_type)
-    norm_term = np.zeros(c, dtype=common.large_float_type)
+    prob_sum = np.zeros(c, dtype=types.large_float_type)
+    norm_term = np.zeros(c, dtype=types.large_float_type)
 
     indices = pairs(n)
     predicates = pairs_nonzero(lmat)
@@ -141,12 +141,12 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
         i1, i2 = zip(*index_block)
 
         lprob = lmat.take(i1, axis=0) * lmat.take(i2, axis=0)
-        pprob = np.sum(pmat.take(i1, axis=0) * pmat.take(i2, axis=0), axis=1, keepdims=True, dtype=common.large_float_type)
+        pprob = np.sum(pmat.take(i1, axis=0) * pmat.take(i2, axis=0), axis=1, keepdims=True, dtype=types.large_float_type)
 
         block_prob_sum = lprob * pprob
 
-        prob_sum += np.sum(block_prob_sum, axis=0, dtype=common.large_float_type)
-        norm_term += np.sum(lprob, axis=0, dtype=common.large_float_type)
+        prob_sum += np.sum(block_prob_sum, axis=0, dtype=types.large_float_type)
+        norm_term += np.sum(lprob, axis=0, dtype=types.large_float_type)
 
     error = prob_sum/norm_term
 
@@ -160,8 +160,8 @@ def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
     assert lmat.shape == pmat.shape
 
     c = lmat.shape[1]
-    scores = np.zeros(c, dtype=common.large_float_type)
-    sizes = np.zeros(c, dtype=common.large_float_type)
+    scores = np.zeros(c, dtype=types.large_float_type)
+    sizes = np.zeros(c, dtype=types.large_float_type)
     for i in range(c):
         r = np.exp(pmat[:, (i,)])
         wn = r * weights
@@ -186,8 +186,8 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     order = np.argsort(like, axis=0)
 
     error = 0.0
-    wn_cumulative = common.large_float_type(weights_null.sum())
-    wa_cumulative = common.large_float_type(0.0)
+    wn_cumulative = types.large_float_type(weights_null.sum())
+    wa_cumulative = types.large_float_type(0.0)
 
     l_last = 0.0
     step_size = 0.0

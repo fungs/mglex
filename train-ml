@@ -26,7 +26,7 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import bugsator as bugs
+import mglex
 import numpy as np
 import sys
 
@@ -34,25 +34,25 @@ import sys
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    bugs.common.handle_broken_pipe()
+    mglex.common.handle_broken_pipe()
 
     responsibility_filename = argument["--responsibility"]
     if responsibility_filename:
-        responsibility = bugs.common.load_probmatrix_file(responsibility_filename)
+        responsibility = mglex.common.load_probmatrix_file(responsibility_filename)
     else:
-        responsibility = bugs.common.load_probmatrix(sys.stdin)
-    responsibility = np.exp(responsibility, dtype=bugs.types.prob_type)
+        responsibility = mglex.common.load_probmatrix(sys.stdin)
+    responsibility = np.exp(responsibility, dtype=mglex.types.prob_type)
 
     n, c = responsibility.shape
 
-    seqlen = bugs.common.load_seqlens_file(argument["--seqlen"])
-    data = bugs.common.UniversalData()
-    model = bugs.common.UniversalModel()
+    seqlen = mglex.common.load_seqlens_file(argument["--seqlen"])
+    data = mglex.models.aggregate.AggregateData()
+    model = mglex.models.aggregate.AggregateModel()
 
     for arg, submodule, data_opts in (
-                ("--coverage", bugs.models.binomial, {}),
-                ("--composition", bugs.models.naive_bayes, {}),
-                ("--labels", bugs.models.hierarchic_naive_bayes, {})):
+                ("--coverage", mglex.models.binomial, {}),
+                ("--composition", mglex.models.naive_bayes, {}),
+                ("--labels", mglex.models.hierarchic_naive_bayes, {})):
 
         filename = argument[arg]
         if filename:
@@ -64,6 +64,6 @@ if __name__ == "__main__":
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    weights = np.asarray(seqlen/seqlen.sum(), dtype=bugs.types.prob_type)
+    weights = np.asarray(seqlen/seqlen.sum(), dtype=mglex.types.prob_type)
     model.maximize_likelihood(data, responsibility, weights)
-    bugs.common.write_model_file(model, argument["--outmodel"])
+    mglex.common.write_model_file(model, argument["--outmodel"])
