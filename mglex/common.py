@@ -184,7 +184,7 @@ def seeds2classindex(seeds):
 def seeds2responsibility_iter(seqnames, seeds):
     seeds = list(seeds)
     lookup = seeds2classindex(seeds)
-    template = np.log(np.zeros(len(seeds), dtype=types.prob_type))
+    template = np.repeat(types.logprob_type('-inf'), len(seeds))
     for name in seqnames:
         index = lookup.get(name, None)
         row = template.copy()
