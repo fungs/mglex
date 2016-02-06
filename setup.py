@@ -29,6 +29,7 @@ setup(
     author_email='johannes.droege@uni-duesseldorf.de',
     license='GNU General Public License, version 3 (GPL-3.0)',
     packages=find_packages(),
+    exclude_package_data = {'': ['.gitignore']},
     scripts=['build-responsibility', 'classify-likelihood', 'evaluate-classification', 'train-ml'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
