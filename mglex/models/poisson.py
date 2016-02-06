@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-# This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
+u"""
+This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
 """
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from common import *
+from .. import common
 import numpy as np
 from sys import argv, exit, stdin, stdout, stderr, exit
 

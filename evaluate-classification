@@ -38,34 +38,33 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import evaluation
-import common
+import mglex
 import sys
 
-methods = { "separation" : lambda l, p, w, s: evaluation.twoclass_separation(l, p, w),
-            "co-clustering" : lambda l, p, w, s: evaluation.expected_pairwise_clustering(l, p, w, int(s))
+methods = { "separation" : lambda l, p, w, s: mglex.evaluation.twoclass_separation(l, p, w),
+            "co-clustering" : lambda l, p, w, s: mglex.evaluation.expected_pairwise_clustering(l, p, w, int(s))
             }
 
 
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    common.handle_broken_pipe()
+    mglex.common.handle_broken_pipe()
 
     try:
-        common.set_random_seed(int(argument["--random-seed"]))
+        mglex.common.set_random_seed(int(argument["--random-seed"]))
     except TypeError:
         sys.stderr.write("No random seed given, consider setting a random seed for better reproducibility.\n")
 
     # load input
     likelihood_filename = argument["--likelihood"]
     if likelihood_filename:
-        likelihood = common.load_probmatrix_file(likelihood_filename)
+        likelihood = mglex.common.load_probmatrix_file(likelihood_filename)
     else:
-        likelihood = common.load_probmatrix(sys.stdin)
+        likelihood = mglex.common.load_probmatrix(sys.stdin)
 
-    responsibility = common.load_probmatrix_file(argument["--responsibility"])
-    weight = common.load_seqlens_file(argument["--weight"])
+    responsibility = mglex.common.load_probmatrix_file(argument["--responsibility"])
+    weight = mglex.common.load_seqlens_file(argument["--weight"])
 
     score = methods[argument["--method"]](likelihood, responsibility, weight, argument["--subsample"])
     sys.stdout.write("%f\n" %score)

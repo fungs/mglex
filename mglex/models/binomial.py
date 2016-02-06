@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 u"""
  This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
  We use a Binomial density to model the coverage per position which also handles low count values.
@@ -18,7 +16,7 @@ logfile = open("coverage.log", "w")
 
 # TODO: clear dependency on scipy
 from scipy.special import gammaln
-logfactorial = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
+logbinom = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
 class Context(object):
@@ -48,7 +46,7 @@ class Data(object):
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = np.asarray(logfactorial(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
+        self.conterm = np.asarray(logbinom(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
 
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
 

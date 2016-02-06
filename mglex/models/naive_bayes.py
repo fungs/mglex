@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 u"""
 This file holds all the functions and types necessary for probabilistic modelling of DNA composition.
 """

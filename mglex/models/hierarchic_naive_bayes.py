@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 u"""
  The types and methods for describing the distribution of label-type data. We use a modified Naive Bayesian Model
  which  considers hierarchical labels using a weighting scheme. However, the weighting of the individual labels

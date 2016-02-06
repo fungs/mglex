@@ -26,23 +26,23 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import bugsator as bugs
+import mglex
 import numpy as np
 import sys
 
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    bugs.common.handle_broken_pipe()
+    mglex.common.handle_broken_pipe()
 
-    seqlen = bugs.common.load_seqlens_file(argument["--seqlen"])
-    model = bugs.common.load_model_file(argument["--model"])
-    data = bugs.common.UniversalData()
+    seqlen = mglex.common.load_seqlens_file(argument["--seqlen"])
+    model = mglex.common.load_model_file(argument["--model"])
+    data = mglex.models.aggregate.AggregateData()
 
     for arg, submodule, data_opts in (
-                ("--coverage", bugs.models.binomial, {}),
-                ("--composition", bugs.models.naive_bayes, {}),
-                ("--labels", bugs.models.hierarchic_naive_bayes, {})):
+                ("--coverage", mglex.models.binomial, {}),
+                ("--composition", mglex.models.naive_bayes, {}),
+                ("--labels", mglex.models.hierarchic_naive_bayes, {})):
 
         filename = argument[arg]
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     mat = model.log_likelihood(data)
 
     if argument["--normalize"]:
-        mat = bugs.common.exp_normalize(mat)
-        bugs.common.write_probmatrix(np.log(mat, dtype=bugs.types.logprob_type), file=sys.stdout)
+        mat = mglex.common.exp_normalize(mat)
+        mglex.common.write_probmatrix(np.log(mat, dtype=mglex.types.logprob_type), file=sys.stdout)
     else:
-        bugs.common.write_probmatrix(mat, file=sys.stdout)
+        mglex.common.write_probmatrix(mat, file=sys.stdout)

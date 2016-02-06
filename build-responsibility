@@ -17,21 +17,21 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import bugsator as bugs
+import mglex
 import sys
 
 if __name__ == "__main__":
     from docopt import docopt
     argument = docopt(__doc__, version=__version__)
-    bugs.common.handle_broken_pipe()
+    mglex.common.handle_broken_pipe()
 
-    seeds = bugs.common.load_seeds_file(argument["--seeds"])
+    seeds = mglex.common.load_seeds_file(argument["--seeds"])
 
     seqnames_filename = argument["--identifiers"]
     if seqnames_filename:
-        seqnames = bugs.common.load_seqnames_file(seqnames_filename)
+        seqnames = mglex.common.load_seqnames_file(seqnames_filename)
     else:
-        seqnames = bugs.common.load_seqnames_iter(sys.stdin)
+        seqnames = mglex.common.load_seqnames_iter(sys.stdin)
 
-    responsibility = bugs.common.seeds2responsibility_iter(seqnames, seeds)
-    bugs.common.write_probmatrix_iter(responsibility, sys.stdout)
+    responsibility = mglex.common.seeds2responsibility_iter(seqnames, seeds)
+    mglex.common.write_probmatrix_iter(responsibility, sys.stdout)
