@@ -42,7 +42,7 @@ import mglex
 import sys
 
 methods = { "separation" : lambda l, p, w, s: mglex.evaluation.twoclass_separation(l, p, w),
-            "co-clustering" : lambda l, p, w, s: mglex.evaluation.expected_pairwise_clustering(l, p, w, int(s))
+            "co-clustering" : lambda l, p, w, s: mglex.evaluation.expected_pairwise_clustering(l, p, w, s)
             }
 
 
@@ -56,6 +56,12 @@ if __name__ == "__main__":
     except TypeError:
         sys.stderr.write("No random seed given, consider setting a random seed for better reproducibility.\n")
 
+    subsample = argument["--subsample"]
+    try:
+        subsample = int(subsample)
+    except TypeError:
+        pass
+
     # load input
     likelihood_filename = argument["--likelihood"]
     if likelihood_filename:
@@ -66,5 +72,5 @@ if __name__ == "__main__":
     responsibility = mglex.common.load_probmatrix_file(argument["--responsibility"])
     weight = mglex.common.load_seqlens_file(argument["--weight"])
 
-    score = methods[argument["--method"]](likelihood, responsibility, weight, argument["--subsample"])
+    score = methods[argument["--method"]](likelihood, responsibility, weight, subsample)
     sys.stdout.write("%f\n" %score)
