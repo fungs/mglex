@@ -21,8 +21,8 @@ u"""
   together in a cluster (between) and for fuzzy label distributions.
 
 Usage:
-  classify-likelihood  (--help | --version)
-  classify-likelihood  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>] [--random-seed <int>]
+  evaluate-classification  (--help | --version)
+  evaluate-classification  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>] [--random-seed <int>]
 
   -h, --help                           Show this screen
   -v, --version                        Show version
