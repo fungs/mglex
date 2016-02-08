@@ -125,6 +125,7 @@ class Model(object):
         self._levelindex = np.asarray(context.levelindex, dtype=label_index_type)
         self.levelsum = np.empty(params.shape, dtype=support_type)
         self._pseudocount = pseudocount
+        self._frequencies = None
 
         if initialize:
             self.update()
@@ -151,6 +152,7 @@ class Model(object):
         # print("levelsum")
         # print(self.levelsum.shape)
         # print(self.levelsum)
+        self._frequencies = self.params / self.levelsum
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check
@@ -161,10 +163,11 @@ class Model(object):
                 loglike[i] = 0
                 continue
 
-            denominator = np.dot(supportcol, self.levelsum[indexcol])  ## TODO: check if sum is only added once for each level
-            #assert np.all(denominator != 0.0)
-            numerator = np.dot(supportcol, self.params[indexcol])
 
+
+            denominator = supportcol.sum()  # replace by relative weights in data and length normalization
+            #assert np.all(denominator != 0.0)
+            numerator = np.dot(supportcol, self._frequencies[indexcol])
 
             # if not np.all(numerator != 0.):
             #     print(pretty_probvector(numerator), file=stderr)
