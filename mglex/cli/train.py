@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 u"""
- This is the main program which takes a (negatively log-scaled) responsibility (or weight) matrix and corresponding
- sample features. The program trains the composite model by maximum-likelihood fitting and writes the model file to the
- given filename.
+This is the main program which takes a (negatively log-scaled) responsibility (or weight) matrix and corresponding
+sample features. The program trains the composite model by maximum-likelihood fitting and writes the model file to the
+given filename.
 
 Usage:
-  train-ml  (--help | --version)
-  train-ml  (--seqlen <file>) (--outmodel <file>) [--responsibility <file>]
+  train  (--help | --version)
+  train  (--seqlen <file>) (--outmodel <file>) [--responsibility <file>]
             [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>]
 
   -h, --help                            Show this screen
@@ -26,33 +26,43 @@ Usage:
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
 
-import mglex
-import numpy as np
 import sys
+import numpy as np
+
+# some ugly code which makes this run as a standalone script
+try:  # when run inside module
+    from .. import *
+except SystemError:  # when run independenly, needs mglex package in path
+    try:
+        from mglex import *
+    except ImportError:
+        from pathlib import Path
+        sys.path.append(str(Path(__file__).resolve().parents[2]))
+        from mglex import *
 
 
-if __name__ == "__main__":
+def main(argv):
     from docopt import docopt
-    argument = docopt(__doc__, version=__version__)
-    mglex.common.handle_broken_pipe()
+    argument = docopt(__doc__, argv=argv, version=__version__)
+    common.handle_broken_pipe()
 
     responsibility_filename = argument["--responsibility"]
     if responsibility_filename:
-        responsibility = mglex.common.load_probmatrix_file(responsibility_filename)
+        responsibility = common.load_probmatrix_file(responsibility_filename)
     else:
-        responsibility = mglex.common.load_probmatrix(sys.stdin)
-    responsibility = np.exp(responsibility, dtype=mglex.types.prob_type)
+        responsibility = common.load_probmatrix(sys.stdin)
+    responsibility = np.exp(responsibility, dtype=types.prob_type)
 
     n, c = responsibility.shape
 
-    seqlen = mglex.common.load_seqlens_file(argument["--seqlen"])
-    data = mglex.models.aggregate.AggregateData()
-    model = mglex.models.aggregate.AggregateModel()
+    seqlen = common.load_seqlens_file(argument["--seqlen"])
+    data = models.aggregate.AggregateData()
+    model = models.aggregate.AggregateModel()
 
     for arg, submodule, data_opts in (
-                ("--coverage", mglex.models.binomial, {}),
-                ("--composition", mglex.models.naive_bayes, {}),
-                ("--labels", mglex.models.hierarchic_naive_bayes, {})):
+                ("--coverage", models.binomial, {}),
+                ("--composition", models.naive_bayes, {}),
+                ("--labels", models.hierarchic_naive_bayes, {})):
 
         filename = argument[arg]
         if filename:
@@ -64,6 +74,10 @@ if __name__ == "__main__":
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    weights = np.asarray(seqlen/seqlen.sum(), dtype=mglex.types.prob_type)
+    weights = np.asarray(seqlen/seqlen.sum(), dtype=types.prob_type)
     model.maximize_likelihood(data, responsibility, weights)
-    mglex.common.write_model_file(model, argument["--outmodel"])
+    common.write_model_file(model, argument["--outmodel"])
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
