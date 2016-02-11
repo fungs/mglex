@@ -14,6 +14,7 @@ Here are the commands to run:
    classify          Calculate likelihood of data under a model
    buildmatrix       Construct a responsibility matrix for grouped data
    evaluate          Evaluate the classifcation using a reference (true) responsibility matrix
+   significance      Give a null log-likelihood distribution and calculate p-values for unseen data
 
 See 'mglex <command> --help' for more information on a specific command.
 """
