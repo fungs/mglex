@@ -31,7 +31,7 @@ Usage:
   -w <file>, --weight <file>           Weights (sequence length) file
   -m <method>, --method                Evaluation method; one of "separation", "co-clustering"
   -s <int>, --subsample                Subsample this number of data points for speedup (only co-clustering)
-  -z <int>, --random-seed                     Seed for random operations
+  -z <int>, --random-seed              Seed for random operations
 """
 
 
@@ -74,9 +74,8 @@ def main(argv):
         pass
 
     # load input
-    likelihood_filename = argument["--likelihood"]
-    if likelihood_filename:
-        likelihood = common.load_probmatrix_file(likelihood_filename)
+    if argument["--likelihood"]:
+        likelihood = common.load_probmatrix_file(argument["--likelihood"])
     else:
         likelihood = common.load_probmatrix(sys.stdin)
 
