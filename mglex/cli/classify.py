@@ -8,13 +8,12 @@ probabilities, also called the responsibility matrix in the context of mixture m
 
 Usage:
   classify  (--help | --version)
-  classify  (--seqlen <file>) (--model <file>) [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>] [--normalize]
+  classify  (--model <file>) [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>] [--normalize]
 
   -h, --help                        Show this screen
   -v, --version                     Show version
   -n, --normalize                   Output class posterior instead of the raw likelihood
   -m <file>, --model <file>         Pre-calculated classificaton model file
-  -s <file>, --seqlen <file>        Sequence lengths file
   -d <file>, --coverage <file>      Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>        Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
@@ -46,7 +45,6 @@ def main(argv):
     argument = docopt(__doc__, argv=argv, version=__version__)
     common.handle_broken_pipe()
 
-    seqlen = common.load_seqlens_file(argument["--seqlen"])
     model = common.load_model_file(argument["--model"])
     data = models.aggregate.AggregateData()
 
