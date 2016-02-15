@@ -47,7 +47,7 @@ class Data(object):
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
         for entry in inseq:
-            self.deposit(entry.split(","))
+            self.deposit(entry.split(" "))
         return self.prepare()
 
     @property
