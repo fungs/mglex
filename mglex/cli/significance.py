@@ -74,21 +74,21 @@ def main(argv):
     nulldata = common.load_probmatrix_file(argument["--nulldata"])  # log-likelihood matrix
     responsibility = common.load_probmatrix_file(argument["--responsibility"])  # log-likelihood matrix
     weights = common.load_seqlens_file(argument["--seqlen"])
-    weights = types.prob_type(weights/weights.sum(dtype=types.large_float_type))
-    responsibility = types.prob_type(np.exp(responsibility) * weights)
+    weights /= weights.max()
+    weights *= np.exp(responsibility)
 
     pvalues = []
-    for lcol, rcol in zip(nulldata.T, responsibility.T):
+    for lcol, rcol in zip(nulldata.T, weights.T):  # TODO: clean up code and save memory: do things inplace
         index_compr = np.where(rcol > 0)
         ll = lcol[index_compr]
         index_compr_sort = ll.argsort()[::-1]
         ll = ll[index_compr_sort]
         rr = rcol[index_compr][index_compr_sort]
-        rr /= rr.sum(dtype=types.large_float_type)  # use types.prob_type?
+        rsum = rr.sum(dtype=types.large_float_type) # use types.prob_type?
 
         if ll.size > 0:
             mask = np.ones(ll.size, dtype=np.bool)
-            rr[0] = 1.0 - rr[0]
+            rr[0] = rsum - rr[0]
             for i in range(1, ll.size):
                 if ll[i] == ll[i-1]:
                     mask[i-1] = False
@@ -96,9 +96,12 @@ def main(argv):
 
             rr = rr[mask]  # remove double entries
             rr[1:] = rr[:-1]
-            rr[0] = 1.0
+            rr[0] = rsum
+            rr = np.log(rr) - np.log(rsum)
             ll = ll[mask]
             # assert np.all(rr>=0.0)
+            # common.print_probvector(ll)
+            # common.print_probvector(rr)
         pvalues.append(PValue(ll, rr))
 
     del nulldata, responsibility
@@ -114,7 +117,7 @@ def main(argv):
         for i in si:
             col[i] = pval.get(col[i])
 
-    common.write_probmatrix(np.log(data))
+    common.write_probmatrix(data)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
