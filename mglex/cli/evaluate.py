@@ -22,7 +22,8 @@ Method "separation":
 
 Usage:
   classify  (--help | --version)
-  classify  (--responsibility <file>) (--method <method>) [--likelihood <file>] [--weight <file>] [--subsample <int>] [--random-seed <int>]
+  classify  (--responsibility <file>) (--method <method>) (--weight <file>)
+            [--likelihood <file>] [--subsample <int>] [--random-seed <int>]
 
   -h, --help                           Show this screen
   -v, --version                        Show version

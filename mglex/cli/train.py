@@ -7,15 +7,16 @@ given filename.
 
 Usage:
   train  (--help | --version)
-  train  (--seqlen <file>) (--outmodel <file>) [--responsibility <file>]
-            [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>]
+  train  (--weight <file>) (--outmodel <file>) [--responsibility <file>] [--abcoverage <file>] [--diffcoverage <file>]
+                                               [--composition <file>] [--labels <file>] [--logfile <file>]
 
   -h, --help                            Show this screen
   -v, --version                         Show version
   -r <file>, --responsibility <file>    Responsibility (weight) matrix file; default standard input
   -o <file>, --outmodel <file>          Output classificaton model file; default standard input
-  -s <file>, --seqlen <file>            Sequence lengths file
-  -d <file>, --coverage <file>          Differential mean coverage data file for Binomial Model
+  -w <file>, --weight <file>            Weights (sequence length) file
+  -a <file>, --abcoverage <file>        Absolute mean coverage data file for Poisson Model
+  -d <file>, --diffcoverage <file>      Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>       Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>            Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
   -l <file>, --logfile <file>           File for logging
@@ -55,12 +56,13 @@ def main(argv):
 
     n, c = responsibility.shape
 
-    seqlen = common.load_seqlens_file(argument["--seqlen"])
+    seqlen = common.load_seqlens_file(argument["--weight"])
     data = models.aggregate.AggregateData()
     model = models.aggregate.AggregateModel()
 
     for arg, submodule, data_opts in (
-                ("--coverage", models.binomial, {}),
+                ("--abcoverage", models.poisson, {}),
+                ("--diffcoverage", models.binomial, {}),
                 ("--composition", models.naive_bayes, {}),
                 ("--labels", models.hierarchic_naive_bayes, {})):
 
