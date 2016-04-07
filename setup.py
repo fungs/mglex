@@ -11,7 +11,7 @@ setup(
     license='GNU General Public License, version 3 (GPL-3.0)',
     packages=find_packages(),
     exclude_package_data = {'': ['.gitignore']},
-    scripts=['build-responsibility', 'classify-likelihood', 'evaluate-classification', 'train-ml'],
+    scripts=['mglex-cli'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     install_requires=["numpy >= 1.9.2", "scipy >= 0.16.0", "docopt >= 0.6.2"],

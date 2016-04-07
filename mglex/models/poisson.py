@@ -4,102 +4,72 @@ This file holds all the functions and types necessary for probabilistic modellin
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 
-from .. import common
+from .. import common, types
 import numpy as np
-from sys import argv, exit, stdin, stdout, stderr, exit
+from sys import stderr
 
-# count data type
-frequency_type = np.int32
-logfile = open("coverage.log", "w")
+mean_coverage_type = np.float32  # move to context object
 
 
-class Data:
-    def __init__(self, samples):  # TODO: use deque() for large append-only lists
-        self.samples = []
-        self._samplename2index = {}
-        self._covsums = []
-        self._seqlens = []
-        self._sum_log_fac_covs = []  # TODO: remove optional part
-        self._intialize_samples(samples)
-        self._zero_count_vector = np.zeros(len(samples), dtype=frequency_type)
-        self._zero_count_vector_uint = np.zeros(len(samples), dtype=frequency_type)
-        self.covsums = None
-        self.sizes = None
+class Context(object):
+    """Container for information which is shared between Data and Model"""
+
+    def __init__(self):
+        self.num_features = None
+
+
+class Data(object):
+    def __init__(self, context=Context()):  # TODO: use deque() for large append-only lists
+        self.context = context
         self.covmeans = None
-        self.facterm = None
-
-    def _intialize_samples(self, samples):
-        for i, sample in enumerate(samples):
-                self._samplename2index[sample] = i
-                self.samples.append(sample)
+        self.conterm = None
+        self._covmeans = []
 
     def deposit(self, features):  # TODO: improve data parsing and handling
-        if not features:
-            print("empty coverage features set deposit!", file=stderr)
-
-        length = 0  # TODO: transfer length to UniversalData object and use only average coverage
-        row_covsums = self._zero_count_vector.copy()
-        row_facsums = self._zero_count_vector_uint.copy()  # TODO. remove optional term
-
-        for sample_name, sample_coverage in features:
-            coverage = list(map(self.coverage_type, sample_coverage))  # TODO: use sparse numpy objects...
-            # print(coverage)
-            # feature_list.append((sample_name, coverage))
-            try:
-                index = self._samplename2index[sample_name]
-                row_covsums[index] = np.sum(coverage)
-                length = len(coverage)
-                tmp = log_array(factorial_array(coverage))/length
-                row_facsums[index] = tmp.sum()  # TODO: replace by optimize code, if not removed!!!
-                assert(row_covsums[index])
-            except KeyError:
-                pass
-                # stderr.write("Feature with sample name \"%s\" ignored.\n" % sample)
-
-        # if length:  # only process non-empty data
-        self._covsums.append(row_covsums)
-        self._seqlens.append(length)
-        self._sum_log_fac_covs.append(row_facsums)  # TODO: simplify or remove (one term per datum)
+        coverage = np.array(features, dtype=mean_coverage_type)
+        self._covmeans.append(coverage)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
-        for entry in inseq:
-            feature_list = []
-            for sample_group in entry.split(" "):
-                sample_name, sample_coverage = sample_group.split(":", 2)[:2]
-                feature_list.append((sample_name, sample_coverage.split(",")))
-            self.deposit(feature_list)
+        for entry in inseq:  # space-separated list of sample mean coverage
+            self.deposit(entry.split(" "))
         return self.prepare()
 
     def prepare(self):
-        self.covsums = np.vstack(self._covsums)
-        self.sizes = np.array(self._seqlens, dtype=frequency_type)[:, np.newaxis]
-        self.covmeans = self.covsums / self.sizes
-        self.facterm = sum(self._sum_log_fac_covs)  # TODO: do not really need to calculate and store previous intermediate values
-        assert(np.all(self.covsums.sum(axis=1) > 0))  # zero observation in all samples might be possible TODO: check cases
+        self.covmeans = np.vstack(self._covmeans)
+        self.conterm = common.gammaln(self.covmeans+1).sum(axis=1, keepdims=True)
+        assert(np.all(self.covmeans.sum(axis=1) > 0))
+
+        if self.context.num_features is None:
+            self.context.num_features = self.num_features
+        else:
+            assert self.context.num_features == self.num_features
+
         return self
 
     @property
     def num_features(self):
-        return self.covsums.shape[1]
+        return self.covmeans.shape[1]
 
     @property
     def num_data(self):
-        return self.covsums.shape[0]
+        return self.covmeans.shape[0]
 
-    __len__ = num_data  # TODO: select an intuitive convention for this
+    def __len__(self):
+        return self.num_data  # TODO: select an intuitive convention for this
 
-    coverage_type = np.uint32
 
+class Model(object):
+    def __init__(self, params, context=Context(), initialize=True, pseudocount=False):
+        self.context = context
 
-class Model:
-    def __init__(self, params, initialize=True, pseudocount=False):  # TODO: does pseudocount make sense here?
-        if pseudocount:
+        if pseudocount:  # TODO: needs investigation, do not activate
             self.params = np.array(params + 1).T
             self._pseudocount = True
         else:
             self.params = np.array(params).T
             self._pseudocount = False
 
+        self.stdev = None
         self._params_sum = None
         self._params_log = None
 
@@ -109,19 +79,24 @@ class Model:
     def update(self):
         # if not np.all(self.params):
             # print >>stderr, "some cluster in some sample wasn't observed:", self.params
-        self._params_sum = self.params.sum(axis=0, keepdims=True)
-        self._params_log = np.log(self.params)
+        with np.errstate(divide='ignore'):
+            self._params_sum = self.params.sum(axis=0, keepdims=True)
+            self._params_log = np.log(self.params)
         return False  # indicates whether a dimension change occurred
 
-    def log_likelihood(self, data):  # TODO: check and adjust formula
+    def update_context(self):  # TODO: implement proper context support
+        pass
+
+    def log_likelihood(self, data):
         # term1 = np.dot(data.covsums, self._params_log)  # sum of data coverage version
         term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
         # print("term1 shape is %ix%i" % term1.shape)
         # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
         term2 = self._params_sum  # mean coverage version
         # print("term2 shape is %ix%i" % term2.shape)
-        loglike = term1 - term2
-        loglike = loglike - data.facterm  # optional if only scaled likelihood is needed
+        # loglike = term1 - term2
+        # loglike = loglike - data.conterm  # optional if only scaled likelihood is needed
+        loglike = np.asarray(term1 - term2 - data.conterm, dtype=types.logprob_type)/self.num_features
         # print >>stderr, loglike
         return loglike
 
@@ -131,21 +106,46 @@ class Model:
         for i in indices:
             yield "-".join(("%i" % round(v) for v in np.asarray(self.params)[:, i]))
 
-    def maximize_likelihood(self, responsibilities, data, cmask=None):  # TODO: adjust
-        if cmask is None or cmask.shape == () or np.all(cmask):
-            weighted_coverage_sum = np.dot(data.covsums.T, responsibilities)
-            weighted_length_sum = np.dot(data.sizes.T, responsibilities)
-        else:
-            # print >>stderr, "shape of responsibilities vector:", responsibilities.shape
-            weighted_coverage_sum = np.dot(data.covsums.T, responsibilities[:, cmask])
-            weighted_length_sum = np.dot(data.sizes.T, responsibilities[:, cmask])
+    def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
 
-        self.params = weighted_coverage_sum / weighted_length_sum
-        return self.update()
+        if not (cmask is None or cmask.shape == () or np.all(cmask)):  # cluster reduction
+            responsibilities = responsibilities[:, cmask]
+
+        weights_combined = responsibilities * weights
+
+        weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
+        weights_normalization = weights_combined.sum(axis=0, keepdims=True)
+        self.params = weighted_meancoverage_samples / weights_normalization
+
+        dimchange = self.update()  # create cache for likelihood calculations
+
+        ll = self.log_likelihood(data)
+
+        # n=8000
+        # test = ll[-n:, :]
+        # common.print_probmatrix(ll[-n:, :])
+        # print(np.sum(np.isinf(test)))
+
+        # import sys
+        # sys.exit(1)
+
+        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
+        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
+        combined_std = np.dot(std_per_class, relative_weight_per_class)
+        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
+        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
+        self.stdev = combined_std
+        return dimchange, ll
 
     @property
     def num_components(self):
         return self.params.shape[1]
+
+    @property
+    def num_features(self):
+        return self.params.shape[0]
 
     @property
     def names(self):
@@ -155,41 +155,23 @@ class Model:
     # def features_used(self):
         # return sum(self._fmask)
 
-    _short_name = "NB_model"
+    _short_name = "PO_model"
 
 
-def load_model(instream):
-    all_clists = []
-    # samples = input.next().rstrip().split("\t")
-    for line in instream:
-        if not line or line[0] == "#":
-            continue
-        clist = line.rstrip().split("\t")
-        if clist:
-            all_clists.append(list(map(int, clist)))
-    return Model(all_clists)
+def empty_model(cluster_number, context, **kwargs):
+    assert cluster_number > 0
+    assert type(context) == Context
+    params = np.zeros(shape=(cluster_number, context.num_features), dtype=mean_coverage_type)
+    return Model(params, **kwargs)
 
 
-def load_data(input, samples):  # TODO: add load_data from generic with data-specific parse_line function
-    store = Data(samples)
-    for line in input:
-        if not line or line[0] == "#":  # skip empty lines and comments
-            continue
-        seqname, coverage_field = line.rstrip().split("\t", 2)[:2]
-        feature_list = []
-        for sample_group in coverage_field.split(" "):
-            sample_name, coverage = sample_group.split(":", 2)[:2]
-            coverage = list(map(int, coverage.split(",")))  # TODO: use sparse numpy objects...
-            feature_list.append((sample_name, coverage))
-        store.deposit(seqname, feature_list)
-    return store.prepare()
+def random_model(cluster_number, context, low=0, high=None, **kwargs):
+    assert cluster_number > 0
+    assert type(context) == Context
+    params = np.random.randint(low, high, (cluster_number, context.num_features))
+    return Model(params, **kwargs)
 
 
-def random_model(component_number, feature_number, low, high):  # TODO: make generic
-    params = np.random.randint(low, high, (component_number, feature_number))
-    return Model(params)
-
-
-def empty_model(component_number, feature_number):  # TODO: make generic
-    params = np.zeros(shape=(component_number, feature_number), dtype=frequency_type)
-    return Model(params)
+def load_data_file(filename, **kwargs):
+    d = Data(**kwargs)
+    return common.load_data_file(filename, d)
