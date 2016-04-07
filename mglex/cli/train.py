@@ -13,7 +13,7 @@ Usage:
   -h, --help                            Show this screen
   -v, --version                         Show version
   -r <file>, --responsibility <file>    Responsibility (weight) matrix file; default standard input
-  -o <file>, --outmodel <file>          Output classificaton model file; default standard input
+  -o <file>, --outmodel <file>          Output classificaton model file; default standard output
   -s <file>, --seqlen <file>            Sequence lengths file
   -d <file>, --coverage <file>          Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>       Compositional data (numeric) file for Naive Bayes Model
