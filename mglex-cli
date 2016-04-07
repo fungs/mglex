@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+
+u"""
+This is the mglex master script which calls the sub-scripts.
+
+Usage:
+  mglex-cli [--version] [--help] <command> [<args>...]
+
+  -h, --help         Show this screen
+  -v, --version      Show version
+
+Here are the commands to run:
+   train             Train a model (set maximum-likelihood parameters)
+   classify          Calculate likelihood of data under a model
+   buildmatrix       Construct a responsibility matrix for grouped data
+   evaluate          Evaluate the classifcation using a reference (true) responsibility matrix
+   significance      Give a null log-likelihood distribution and calculate p-values for unseen data
+
+See 'mglex <command> --help' for more information on a specific command.
+"""
+
+import sys
+import importlib
+
+__version__ = "none"
+
+if __name__ == "__main__":
+    from docopt import docopt
+    arguments = docopt(__doc__, version=__version__, options_first=True)
+
+    import mglex.cli
+    try:
+        command = importlib.import_module(".".join(("mglex", "cli", arguments["<command>"])))
+        command.main(arguments["<args>"])
+    except ImportError:
+        sys.stderr.write("Command '%s' does not exist.\n" % arguments["<command>"])

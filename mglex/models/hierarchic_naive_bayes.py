@@ -13,7 +13,6 @@ import numpy as np
 from sys import argv, exit, stdin, stdout, stderr, exit
 
 # label data type
-logfile = open("labeldist.log", "w")
 label_index_type = np.uint32  # TODO: check range
 support_type = np.uint64  # TODO: check range
 

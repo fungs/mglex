@@ -14,6 +14,7 @@ from itertools import count, filterfalse, chain
 from collections import defaultdict, deque
 from sys import stderr, stdout
 import pickle
+from scipy.special import gammaln  # TODO: clear dependency on scipy
 
 
 def parse_lines(lines):
@@ -64,6 +65,10 @@ def argmax(s, n=1):
     return max_store
 
 
+def logbinom(n, k):
+    return gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
+
+
 flat_priors = lambda n: np.repeat(1./n, n)
 
 
@@ -111,34 +116,34 @@ def exp_normalize_1d(data):
     return ret
 
 
+swapindex_2d = [1,0]
+
+
 def weighted_variance(data, weights, axis=0, dtype=None):
+    assert weights.shape == data.shape
     original_dtype = data.dtype
     if dtype is not None:
         dtype = data.dtype
-        #data = np.asarray(data, dtype=dtype)
-        #weights = np.asarray(weights, dtype=dtype)
 
-    # shift data to prevent type overflow
-    # stderr.write("old mean %s\nold min %s\nold max %s\nold sum %s\n" %
-    #              (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
-    #               pretty_probvector(np.min(data, axis=axis)),
-    #               pretty_probvector(np.max(data, axis=axis)),
-    #               pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
+    # iterative version because columns have dynamic size after masking
+    axis = swapindex_2d[axis]
+    data_weighted_var = np.empty(data.shape[axis], dtype=original_dtype)
 
-    # stderr.write("data dtype before: %s\n" % data.dtype)
-    data = data - np.asarray(np.mean(data, dtype=types.large_float_type, axis=axis), dtype=original_dtype)
-    # stderr.write("data dtype after: %s\n" % data.dtype)
+    for i, v, w in zip(count(0), np.rollaxis(data, axis), np.rollaxis(weights, axis)):
+        m = ~np.isinf(v)
+        v = v[m]
+        w = w[m]
+        v = v - np.asarray(np.mean(v, dtype=types.large_float_type), dtype=original_dtype)
+        wmean = np.average(np.asarray(v, dtype=types.large_float_type), weights=w)
+        data_weighted_var[i] = np.average((v - wmean)**2, weights=w)
 
-    # stderr.write("new mean %s\nnew min %s\nnew max %s\nnew sum %s\n" %
-    #              (pretty_probvector(np.mean(data, axis=axis, dtype=large_float_type)),
-    #               pretty_probvector(np.min(data, axis=axis)),
-    #               pretty_probvector(np.max(data, axis=axis)),
-    #               pretty_probvector(np.sum(data, axis=axis, dtype=large_float_type))))
-
-    data_weighted_mean = np.average(np.asarray(data, dtype=np.float32), weights=weights, axis=axis)  # TODO: re-implement with accumulator dtype
-    data_weighted_var = np.average((data - data_weighted_mean)**2, weights=weights, axis=0)  # TODO: re-implement with accumulator dtype
-    # stderr.write("var return dtype: %s\n" % data_weighted_var.dtype)
-    return np.asarray(data_weighted_var, dtype=original_dtype)
+    # shift data to mean zero
+    # mask = ~np.any(np.isinf(data), axis=not axis)
+    # data -= np.asarray(np.mean(data[mask], dtype=types.large_float_type, axis=axis), dtype=original_dtype)
+    # data_weighted_mean = np.average(np.asarray(data[mask], dtype=np.float32), weights=weights[mask], axis=axis)  # TODO: re-implement with accumulator dtype
+    # data_weighted_var = np.average((data[mask] - data_weighted_mean)**2, weights=weights[mask], axis=0)  # TODO: re-implement with accumulator dtype
+    # data_weighted_var = np.asarray(data_weighted_var, dtype=original_dtype)
+    return data_weighted_var
 
 
 def log_fac(i):
@@ -510,12 +515,12 @@ print_predictions = lambda mat: print_probmatrix(np.absolute(np.log(mat)))  # TO
 
 # debug function
 def factorial_array(vec):
-    return np.asarray([np.math.factorial(i) for i in vec])
+    return np.asarray([np.math.factorial(i) for i in vec])  # superslow?
 
 
 # debug function
 def log_array(vec):
-    return np.asarray([math.log(i) for i in vec], dtype=float)
+    return np.asarray([math.log(i) for i in vec], dtype=float)  # why not numpy.log?
 
 
 binom_array = binom

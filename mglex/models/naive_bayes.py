@@ -9,8 +9,6 @@ import numpy as np
 from itertools import compress
 from sys import stderr, exit
 
-logfile = open("coverage.log", "w")
-
 
 class Context(object):
     """Container for information which is shared between Data and Model"""
@@ -35,10 +33,10 @@ class Data(object):
     def prepare(self):
         self.frequencies = np.vstack(self._frequencies)
         self.sizes = self.frequencies.sum(axis=1, keepdims=True, dtype=types.seqlen_type)  # TODO: replace by global seqlen
-        print("Data frequencies", file=logfile)
-        common.print_vector(self.frequencies[0, :], file=logfile)  # TODO: remove
-        common.print_vector(self.frequencies[-1, :], file=logfile)  # TODO: remove
-        common.newline(file=logfile)
+        # print("Data frequencies", file=logfile)
+        # common.print_vector(self.frequencies[0, :], file=logfile)  # TODO: remove
+        # common.print_vector(self.frequencies[-1, :], file=logfile)  # TODO: remove
+        # common.newline(file=logfile)
         self.frequencies = types.prob_type(self.frequencies/self.sizes)  # TODO: why does /= not work?
         common.assert_probmatrix(self.frequencies)
 
@@ -47,7 +45,7 @@ class Data(object):
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
         for entry in inseq:
-            self.deposit(entry.split(","))
+            self.deposit(entry.split(" "))
         return self.prepare()
 
     @property
@@ -98,10 +96,10 @@ class Model(object):  # TODO: move names to supermodel
             self._loglikes = np.log(self.variables[:, self._fmask])
             stderr.write("LOG %s: using %i out of %i features\n" % (self._short_name, self._fmask.sum(), self.variables.shape[1]))
 
-            print("Model composition for %i clusters and %i features:" % self.variables.shape, file=logfile)
-            common.print_probvector(self.variables[0, :], file=logfile)
-            common.print_probvector(self.variables[-1, :], file=logfile)
-            common.newline(file=logfile)
+            # print("Model composition for %i clusters and %i features:" % self.variables.shape, file=logfile)
+            # common.print_probvector(self.variables[0, :], file=logfile)
+            # common.print_probvector(self.variables[-1, :], file=logfile)
+            # common.newline(file=logfile)
             return dimchange
 
         stderr.write("ERROR %s: pseudocount method not implemented\n" % self._short_name)
