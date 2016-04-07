@@ -12,11 +12,6 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 # count data type
 frequency_type = np.int32
 logtype = np.float64  # TODO: adjust according to maximum values
-logfile = open("coverage.log", "w")
-
-# TODO: clear dependency on scipy
-from scipy.special import gammaln
-logbinom = lambda n, k: gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
 class Context(object):
@@ -46,7 +41,7 @@ class Data(object):
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = np.asarray(logbinom(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
+        self.conterm = np.asarray(common.logbinom(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
 
         assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
 
@@ -106,7 +101,7 @@ class Model(object):
         assert np.all(~np.isnan(term2))
         loglike = np.asarray(term1 + term2 + data.conterm, dtype=types.logprob_type)/self.num_features
 
-        common.write_probmatrix(loglike, file=logfile)
+        # common.write_probmatrix(loglike, file=logfile)
 
         assert np.all(loglike <= .0)
         return loglike

@@ -8,13 +8,15 @@ probabilities, also called the responsibility matrix in the context of mixture m
 
 Usage:
   classify  (--help | --version)
-  classify  (--model <file>) [--coverage <file>] [--composition <file>] [--labels <file>] [--logfile <file>] [--normalize]
+  classify  (--model <file>) [--abcoverage <file>] [--diffcoverage <file>] [--composition <file>]
+                             [--labels <file>] [--logfile <file>] [--normalize]
 
   -h, --help                        Show this screen
   -v, --version                     Show version
   -n, --normalize                   Output class posterior instead of the raw likelihood
   -m <file>, --model <file>         Pre-calculated classificaton model file
-  -d <file>, --coverage <file>      Differential mean coverage data file for Binomial Model
+  -a <file>, --abcoverage <file>    Absolute mean coverage data file for Poisson Model
+  -d <file>, --diffcoverage <file>  Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>        Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
   -l <file>, --logfile <file>       File for logging
@@ -49,7 +51,8 @@ def main(argv):
     data = models.aggregate.AggregateData()
 
     for arg, submodule, data_opts in (
-                ("--coverage", models.binomial, {}),
+                ("--abcoverage", models.poisson, {}),
+                ("--diffcoverage", models.binomial, {}),
                 ("--composition", models.naive_bayes, {}),
                 ("--labels", models.hierarchic_naive_bayes, {})):
 
