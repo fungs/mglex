@@ -76,7 +76,7 @@ def main(argv):
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    weights = np.asarray(seqlen/seqlen.sum(), dtype=types.prob_type)
+    weights = np.asarray(seqlen * (np.finfo(types.prob_type).max/seqlen.max()), dtype=types.prob_type)  # TODO: refactor
     model.maximize_likelihood(data, responsibility, weights)
     common.write_model_file(model, argument["--outmodel"])
 

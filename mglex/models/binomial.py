@@ -95,9 +95,10 @@ class Model(object):
 
     def log_likelihood(self, data):  # TODO: check and adjust formula
         assert data.num_features == self.num_features
-        term1 = np.dot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
+
+        term1 = common.nandot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
-        term2 = np.dot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
+        term2 = common.nandot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
         assert np.all(~np.isnan(term2))
         loglike = np.asarray(term1 + term2 + data.conterm, dtype=types.logprob_type)/self.num_features
 

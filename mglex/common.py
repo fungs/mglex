@@ -69,6 +69,24 @@ def logbinom(n, k):
     return gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
+def nandot(a, b):  # TODO: speed up, avoid copying data
+    "A numpy.dot() replacement which treats (0*-Inf)==0 and works around BLAS NaN bugs in matrices."
+    # important note: a contains zeros and b contains inf/-inf/nan, not the other way around
+
+    # workaround for zero*-inf=nan in dot product (must be 0 according to 0^0=1 with probabilities)
+    # 1) calculate dot product
+    # 2) select nan entries
+    # 3) re-calculate matrix entries where 0*inf = 0 using np.nansum()
+    tmp = np.dot(a, b)
+    indices = np.where(np.isnan(tmp))
+    ri, ci = indices
+    with np.errstate(invalid='ignore'):
+        values = np.nansum(a[ri,:] * b[:,ci].T, axis=1)
+    values[np.isnan(values)] = 0.0
+    tmp[indices] = values
+    return tmp
+
+
 flat_priors = lambda n: np.repeat(1./n, n)
 
 
@@ -119,23 +137,130 @@ def exp_normalize_1d(data):
 swapindex_2d = [1,0]
 
 
-def weighted_variance(data, weights, axis=0, dtype=None):
+def weighted_variance_matrix(data, weights, axis=0, dtype=types.large_float_type):
+    assert weights.shape == data.shape
+    axis = swapindex_2d[axis]
+
+    assert np.all(data <= .0)
+    print("max value:", np.abs(data).max(), file=stderr)
+
+    m = ~np.logical_and(weights, np.isfinite(data))  # TODO: maybe use mask to create a reduced copy
+    # print("number of valid entries:", (~m).sum(axis=0), file=stderr)
+    # print("number of non-zero weights:", (weights > 0.0).sum(axis=0), file=stderr)
+    # print_probvector(weights[:, 0], file=stderr)
+
+    d = np.ma.MaskedArray(data, mask=m)
+    print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
+    # print_probvector(d[~m].flatten(), file=stderr)
+    assert np.all(d <= .0)
+
+    w = np.ma.MaskedArray(weights, mask=m)
+    d -= np.ma.mean(d, dtype=types.large_float_type)  # TODO: make sure this is a data copy
+    print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
+    # print_probvector(d[~m].flatten(), file=stderr)
+    d -= np.ma.average(np.ma.MaskedArray(d, dtype=types.large_float_type), weights=w, axis=0)  # TODO: avoid cast
+    print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
+    # print_probvector(d[~m].flatten(), file=stderr)
+    max_value = np.ma.abs(d).max(fill_value=0.0)
+
+    if max_value > 255:
+        shrink_divisor = np.float32(max_value/254.0)
+        print("shrink divisor:", shrink_divisor, file=stderr)
+
+        with np.errstate(invalid='ignore'):
+            d /= shrink_divisor
+        print("max value after shrinking:", np.ma.abs(d).max(fill_value=0.0), "< 256 ?")
+        # print_probvector(d[~m].flatten(), file=stderr)
+
+        assert np.all(np.ma.abs(d) < 256)
+    else:
+        shrink_divisor = 1.0
+
+    assert ~np.ma.any(np.isnan(d[~m]))
+
+    try:
+        with np.errstate(over='raise'):
+            d **= 2
+    except FloatingPointError:
+        stderr.write("Error: overflow in squared vector.\n")
+
+    assert np.all(np.isfinite(d))
+
+    with np.errstate(invalid='raise'):
+        try:
+            data_weighted_var = shrink_divisor**2 * np.ma.average(np.ma.array(d, dtype=types.large_float_type), weights=w, axis=0)
+        except FloatingPointError:
+            stderr.write("Error: probable overflow in np.average.\n")
+            raise FloatingPointError
+
+    #print_probvector(data_weighted_var[~np.all(m, axis=0)], file=stderr)
+
+    return data_weighted_var
+
+
+def weighted_variance_iterative(data, weights, axis=0, dtype=types.large_float_type):
     assert weights.shape == data.shape
     original_dtype = data.dtype
     if dtype is not None:
-        dtype = data.dtype
+        dtype = original_dtype
+
+    # TODO: redo with np.ma.MaskedArray!
 
     # iterative version because columns have dynamic size after masking
     axis = swapindex_2d[axis]
-    data_weighted_var = np.empty(data.shape[axis], dtype=original_dtype)
+    data_weighted_var = np.empty(data.shape[axis], dtype=types.large_float_type)
 
     for i, v, w in zip(count(0), np.rollaxis(data, axis), np.rollaxis(weights, axis)):
-        m = ~np.isinf(v)
+        m = np.logical_and(np.isfinite(v), w)  # ignore nan or infinity values in average
         v = v[m]
         w = w[m]
-        v = v - np.asarray(np.mean(v, dtype=types.large_float_type), dtype=original_dtype)
-        wmean = np.average(np.asarray(v, dtype=types.large_float_type), weights=w)
-        data_weighted_var[i] = np.average((v - wmean)**2, weights=w)
+        v -= np.mean(v, dtype=types.large_float_type)
+        v = v - np.average(np.array(v, dtype=types.large_float_type), weights=w, axis=0)
+
+        assert w.shape == v.shape
+
+        if w.size > 0:
+            max_index = np.abs(v).argmax()
+            max_value = np.abs(v[max_index])
+
+            if max_value:
+                shrink_divisor = max_value/254.0
+
+                assert np.all(np.isfinite(v))
+                # print("shrink divisor:", shrink_divisor, file=stderr)
+                assert shrink_divisor > 0.0
+
+                v /= shrink_divisor  # TODO: substitute with type-specific
+                # print("max value after shrinking:", v[max_index], "== 254 ?")
+
+                assert np.all(np.abs(v) < 256)
+
+                try:
+                    with np.errstate(over='raise'):
+                        # print("Min-Max square:", v.min(), v.max(), file=stderr)
+                        v **= 2
+                except FloatingPointError:
+                    stderr.write("Error: overflow in squared vector.\n")
+                    raise FloatingPointError
+
+                with np.errstate(invalid='raise'):
+                    try:
+                        data_weighted_var[i] = shrink_divisor**2 * np.average(np.array(v, dtype=types.large_float_type), weights=w)
+                    except FloatingPointError:
+                        stderr.write("Error: probable overflow in np.average.\n")
+                        raise FloatingPointError
+
+                assert data_weighted_var[i] >= 0.0
+                if data_weighted_var[i] == 0.0:
+                    print_probvector(v[np.asarray(w, dtype=np.bool)])
+            else:
+                data_weighted_var[i] = 0.0
+        else:
+            data_weighted_var[i] = 0.0
+
+        print("weighted var:", data_weighted_var[i], file=stderr)
+
+        #print(wmean, file=stderr)
 
     # shift data to mean zero
     # mask = ~np.any(np.isinf(data), axis=not axis)
@@ -144,6 +269,8 @@ def weighted_variance(data, weights, axis=0, dtype=None):
     # data_weighted_var = np.average((data[mask] - data_weighted_mean)**2, weights=weights[mask], axis=0)  # TODO: re-implement with accumulator dtype
     # data_weighted_var = np.asarray(data_weighted_var, dtype=original_dtype)
     return data_weighted_var
+
+weighted_variance = weighted_variance_matrix
 
 
 def log_fac(i):
