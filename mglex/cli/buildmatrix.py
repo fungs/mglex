@@ -14,10 +14,10 @@ Usage:
   -i <file>, --identifiers <file>   Sequence identifiers; one per line; default standard input
 """
 
+import sys
+
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
-
-import sys
 
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module

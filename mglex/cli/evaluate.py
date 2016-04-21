@@ -35,11 +35,10 @@ Usage:
   -z <int>, --random-seed              Seed for random operations
 """
 
+import sys
 
 __author__ = "johannes.droege@uni-duesseldorf.de"
 __version__ = "bla"
-
-import sys
 
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module

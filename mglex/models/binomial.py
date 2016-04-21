@@ -128,15 +128,16 @@ class Model(object):
                                  dtype=types.prob_type)  # introduced pseudocounts
 
         dimchange = self.update()  # create cache for likelihood calculations
+
+        # TODO: refactor this block
         ll = self.log_likelihood(data)
-        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        std_per_class = common.weighted_std(ll, weights_combined)
         weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
-        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
-        combined_std = np.dot(std_per_class, relative_weight_per_class)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
-        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
-        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
-        self.stdev = combined_std
+        weight_per_class /= weight_per_class.sum()
+        std_per_class_mask = np.isnan(std_per_class)
+        skipped_classes = std_per_class_mask.sum()
+        self.stdev = np.ma.dot(np.ma.MaskedArray(std_per_class, mask=std_per_class_mask), weight_per_class)
+        stderr.write("LOG %s: mean class likelihood standard deviation is %.2f (omitted %i/%i classes due to invalid or unsufficient data)\n" % (self._short_name, self.stdev, skipped_classes, self.num_components - skipped_classes))
         return dimchange, ll
 
     @property

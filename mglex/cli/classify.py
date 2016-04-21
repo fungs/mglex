@@ -24,11 +24,11 @@ Usage:
 
 # TODO: support multiple arguments of the same kind, like multiple label input data
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
-
 import numpy as np
 import sys
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+__version__ = "bla"
 
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module
