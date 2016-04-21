@@ -83,13 +83,13 @@ class Model(object):  # TODO: move names to supermodel
 
     def update(self):
         assert len(self.names) == self.variables.shape[0]  # TODO: check dimension param
-        common.assert_probmatrix(self.variables)
+        common.assert_probmatrix_relaxed(self.variables)
         dimchange = False
 
         # reduction of model complexity
         if not self._pseudocount:
             fmask_old = self._fmask
-            self._fmask = np.asarray(self.variables, dtype=bool).all(axis=0)
+            self._fmask = np.all(self.variables, axis=0)
             if fmask_old is not None and np.any(fmask_old != self._fmask):  # TODO: consider dimchange when fmask_old==None
                 dimchange = True
                 #stderr.write("LOG %s: toggle features %s\n" % (self._short_name, " ".join(map(str, toggled_f))))
@@ -127,7 +127,7 @@ class Model(object):  # TODO: move names to supermodel
         else:
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
 
-        assert np.all(loglike < .0)
+        assert np.all(np.logical_or(np.isnan, loglike <= 0.0))
         return loglike
 
     def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
@@ -138,19 +138,21 @@ class Model(object):  # TODO: move names to supermodel
 
         weights_combined = responsibilities * weights
 
-        self.variables = np.dot(weights_combined.T, data.frequencies)  # TODO: remove double normalization in update()
-        self.variables = types.prob_type(self.variables/weights_combined.sum(axis=0, keepdims=True, dtype=types.large_float_type).T)  # normalize before update
+        self.variables = np.dot(weights_combined.T, data.frequencies)
+        with np.errstate(invalid='ignore'):  # if no training data is available for any class
+            np.divide(self.variables, weights_combined.sum(axis=0, keepdims=True, dtype=types.large_float_type).T, out=self.variables)  # normalize before update, self.variables is types.prob_type
 
         dimchange = self.update()  # create cache for likelihood calculations
+
+        # TODO: refactor this block
         ll = self.log_likelihood(data)
-        std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
+        std_per_class = common.weighted_std(ll, weights_combined)
         weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
-        relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
-        combined_std = np.dot(std_per_class, relative_weight_per_class)
-        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
-        # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
-        stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
-        self.stdev = combined_std
+        weight_per_class /= weight_per_class.sum()
+        std_per_class_mask = np.isnan(std_per_class)
+        skipped_classes = std_per_class_mask.sum()
+        self.stdev = np.ma.dot(np.ma.MaskedArray(std_per_class, mask=std_per_class_mask), weight_per_class)
+        stderr.write("LOG %s: mean class likelihood standard deviation is %.2f (omitted %i/%i classes due to invalid or unsufficient data)\n" % (self._short_name, self.stdev, skipped_classes, self.num_components - skipped_classes))
         return dimchange, ll
 
     @property

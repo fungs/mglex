@@ -35,6 +35,12 @@ def assert_probmatrix(mat):
     [assert_approx_equal(rowsum, 1., significant=1) for rowsum in mat.sum(axis=1, dtype=np.float32)]
 
 
+def assert_probmatrix_relaxed(mat):  # accepts matrices with all-nan rows (invalid training data for class etc.)
+    mask = ~np.all(np.isnan(mat), axis=1, keepdims=False)
+    mat = mat.compress(mask, axis=0)
+    assert_probmatrix(mat)
+
+
 def approx_equal(v1, v2, precision):
     if type(v1) == type(v2) == np.ndarray:
         if v1.shape != v2.shape:
@@ -137,7 +143,8 @@ def exp_normalize_1d(data):
 swapindex_2d = [1, 0]
 
 
-def weighted_variance_matrix(data, weights, dtype=types.large_float_type, shrink_matrix=True):
+def weighted_std_matrix(data, weights, dtype=types.large_float_type, shrink_matrix=True):  # TODO adjust return of NaN and zero
+    """Weighted standard deviation using numpy masked arrays"""
     assert weights.shape == data.shape
 
     max_valid_value = np.floor(np.sqrt(np.finfo(data.dtype).max))
@@ -172,12 +179,12 @@ def weighted_variance_matrix(data, weights, dtype=types.large_float_type, shrink
     d = np.ma.MaskedArray(d, mask=m)
     w = np.ma.MaskedArray(w, mask=m)
     # print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
-    d -= np.ma.mean(d, dtype=types.large_float_type)  # TODO: remove?
+    # d -= np.ma.mean(d, dtype=types.large_float_type)  # TODO: enable if overflow error in weighted mean calculation
     # print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
-    weights_sums = w.sum(dtype=types.large_float_type, axis=0)
+    weight_sums = w.sum(dtype=types.large_float_type, axis=0)
     # d -= np.ma.average(np.ma.MaskedArray(d, dtype=types.large_float_type), weights=w, axis=0)  # TODO: avoid cast
     with np.errstate(invalid='ignore'):
-        d -= np.ma.sum(d * w, axis=0)/weights_sums
+        d -= np.ma.sum(d * w, axis=0)/weight_sums
     # print("max value:", np.ma.abs(d).max(fill_value=0.0), file=stderr)
 
     max_value = np.ma.abs(d).max(fill_value=0.0)
@@ -201,10 +208,11 @@ def weighted_variance_matrix(data, weights, dtype=types.large_float_type, shrink
 
     assert np.all(np.isfinite(d))
 
+    variance_divisor = weight_sums - ((w**2).sum(dtype=dtype, axis=0)/weight_sums)  # replaces weight_sums in biased std
     with np.errstate(invalid='raise'):
         try:
             # data_weighted_var = shrink_divisor**2 * np.ma.average(np.ma.array(d, dtype=types.large_float_type), weights=w, axis=0)
-            data_weighted_var[select] = shrink_divisor**2 * np.ma.sum(d*w, axis=0)/weights_sums
+            data_weighted_var[select] = np.ma.sqrt(np.ma.sum(d*w, axis=0)) * (shrink_divisor/np.sqrt(variance_divisor))
         except FloatingPointError:
             stderr.write("Error: probable overflow in np.average.\n")
             raise FloatingPointError
@@ -213,23 +221,36 @@ def weighted_variance_matrix(data, weights, dtype=types.large_float_type, shrink
     return data_weighted_var
 
 
-def weighted_variance_iterative(data, weights, dtype=types.large_float_type):
+def weighted_std_iterative(data, weights, dtype=types.large_float_type):
+    """Unbiased weighted standard deviation using iteration over columns, returns NaN if number of valid samples is < 2"""
+    # unbiased version for reliabilty weights: https://en.wikipedia.org/wiki/Weighted_arithmetic_mean
+
     assert weights.shape == data.shape
     axis = 0
     original_dtype = data.dtype
     if dtype is not None:
         dtype = original_dtype
 
-    # TODO: redo with np.ma.MaskedArray!
-
-    # iterative version because columns have dynamic size after masking
     axis = swapindex_2d[axis]  # TODO: remove
     max_valid_value = np.floor(np.sqrt(np.finfo(data.dtype).max))
     data_weighted_var = np.empty(data.shape[axis], dtype=types.large_float_type)
+    # data_weighted_var_mask = np.empty(data.shape[axis], dtype=np.bool)
 
     for i, d, w in zip(count(0), np.rollaxis(data, axis), np.rollaxis(weights, axis)):
-        m = np.logical_and(w, np.isfinite(d))  # ignore nan or infinity values in average
+        # ignore nan or infinity values
+        m = np.isfinite(d)
+        if sum(m) < 2:
+            data_weighted_var[i] = np.nan
+            # data_weighted_var_mask[i] = True
+            continue
+
+        np.logical_and(m, w, out=m)
+
         d = d[m]  # create memory copy
+        if d.size < 2:
+            data_weighted_var[i] = 0.0
+            continue
+
         w = w[m]  # create memory copy
 
         weight_sum = w.sum(dtype=dtype)
@@ -237,8 +258,8 @@ def weighted_variance_iterative(data, weights, dtype=types.large_float_type):
             data_weighted_var[i] = 0.0
             continue
 
-        d -= np.mean(d, dtype=types.large_float_type)
-        d -= d.sum(dtype=types.large_float_type)/weight_sum
+        # d -= np.mean(d, dtype=types.large_float_type)  # TODO: enable if overflow error in weighted mean calculation
+        d -= (d*w).sum(dtype=dtype)/weight_sum
 
         max_value = np.abs(d).max()
         if max_value > max_valid_value:
@@ -255,20 +276,26 @@ def weighted_variance_iterative(data, weights, dtype=types.large_float_type):
                 # print("Min-Max square:", v.min(), v.max(), file=stderr)
                 d **= 2
         except FloatingPointError:
-            stderr.write("Error: overflow in squared vector.\n")
+            stderr.write("Error in weighted variance calculation: overflow in squared vector.\n")
             raise FloatingPointError
 
-        with np.errstate(invalid='raise'):
+        variance_divisor = weight_sum - ((w**2).sum(dtype=dtype)/weight_sum)  # replaces weight_sums in biased std
+        with np.errstate(over='raise'):
             try:
-                data_weighted_var[i] = shrink_divisor**2 * np.sum(d*w)/weight_sum #np.average(np.array(d, dtype=types.large_float_type), weights=w)
+                data_weighted_var[i] = np.sqrt((d*w).sum(dtype=dtype)) * (shrink_divisor/np.sqrt(variance_divisor)) #np.average(np.array(d, dtype=types.large_float_type), weights=w)
             except FloatingPointError:
-                stderr.write("Error: probable overflow in np.average.\n")
-                raise FloatingPointError
+                stderr.write("Error in weighted variance calculation: probable overflow in weights*coverage calculation.\n")
+                # raise FloatingPointError
+                data_weighted_var[i] = np.inf
 
         assert data_weighted_var[i] >= 0.0
+        # data_weighted_var_mask[i] = False
+
+    # print_probvector(data_weighted_var, file=stderr)
+    # return np.ma.MaskedArray(data_weighted_var, mask=data_weighted_var_mask)
     return data_weighted_var
 
-weighted_variance = weighted_variance_iterative
+weighted_std = weighted_std_iterative
 
 
 def log_fac(i):

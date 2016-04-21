@@ -24,11 +24,11 @@ Usage:
 
 # TODO: support multiple arguments of the same kind, like multiple label input data
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
-
 import sys
 import numpy as np
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+__version__ = "bla"
 
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module
@@ -76,7 +76,8 @@ def main(argv):
             # print(data_obj.context, file=sys.stderr)
             # print(model_obj.context, file=sys.stderr)
 
-    weights = np.asarray(seqlen * (np.finfo(types.prob_type).max/seqlen.max()), dtype=types.prob_type)  # TODO: refactor
+    # weights = np.asarray(seqlen * (np.finfo(types.prob_type).max/seqlen.max()), dtype=types.prob_type)  # TODO: refactor
+    weights = np.asarray(seqlen/seqlen.max(), dtype=types.prob_type)  # TODO: refactor
     model.maximize_likelihood(data, responsibility, weights)
     common.write_model_file(model, argument["--outmodel"])
 
