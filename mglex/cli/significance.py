@@ -25,9 +25,6 @@ Usage:
 import numpy as np
 import sys
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
-
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module
     from .. import *
@@ -38,6 +35,9 @@ except SystemError:  # when run independently, needs mglex package in path
         from pathlib import Path
         sys.path.append(str(Path(__file__).resolve().parents[2]))
         from mglex import *
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+from mglex import __version__
 
 
 class PValue(object):
