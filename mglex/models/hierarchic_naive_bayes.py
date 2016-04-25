@@ -258,7 +258,7 @@ class Model(object):
     def names(self):
         return list(self.get_labels())
 
-    _short_name = "LD_model"
+    _short_name = "HNB_model"
 
 
 def load_model(instream):
