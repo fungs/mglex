@@ -203,10 +203,10 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
 
 
 def mean_squarred_error(lmat, pmat, weights):
-
     """Square-rooted mean squared error as a fast evaluation score"""
     assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
-    return np.sqrt(np.average(np.sum((np.exp(lmat) - np.exp(pmat))**2, dtype=types.large_float_type, axis=1, keepdims=True)/2.0, weights=weights))
+    mse = np.sum(np.sum((np.exp(lmat) - np.exp(pmat))**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
+    return np.sqrt(mse/np.sum(weights)/2.0)
 
 
 if __name__ == "__main__":
