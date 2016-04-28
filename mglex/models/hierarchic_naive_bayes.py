@@ -12,9 +12,8 @@ import numpy as np
 # from collections import deque
 from sys import argv, exit, stdin, stdout, stderr, exit
 
-# label data type
+# data types
 label_index_type = np.uint32  # TODO: check range
-support_type = np.uint64  # TODO: check range
 
 
 class Context(object):
@@ -48,7 +47,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self.num_features = len(self._label_mapping)
 
     def deposit(self, features):
-        features = tuple((self._label_mapping[path], support_type(support)) for path, support in features)
+        features = tuple((self._label_mapping[path], self.support_type(support)) for path, support in features)
         self._labels.append(features)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -83,7 +82,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         # replace old by new indices and create numpy arrays inplace TODO: make this two real 2d arrays
         for i, features in enumerate(self._labels):
             index_col = np.empty(len(features), dtype=label_index_type)
-            support_col = np.empty(len(features), dtype=support_type)
+            support_col = np.empty(len(features), dtype=self.support_type)
             for j, (index_orig, support) in enumerate(features):
                 index_col[j] = index2index[index_orig]
                 support_col[j] = support
@@ -110,6 +109,8 @@ class Data(object):  # TODO: use deque() for large append-only lists
     def __len__(self):
         return self.num_data
 
+    support_type = np.uint64  # TODO: check range
+
 
 class Model(object):
     """A variant of a Naïve Bayes classifier model for hierarchical labels"""
@@ -119,10 +120,10 @@ class Model(object):
         assert params.shape[0] == context.num_features
 
         self.context = context
-        self.params = np.array(params, dtype=support_type)  # TODO: use large unsigned integer first, then cut down
+        self.params = np.array(params, dtype=self.support_type)  # TODO: use large unsigned integer first, then cut down
         self.labels = context.labels[:]
         self._levelindex = np.asarray(context.levelindex, dtype=label_index_type)
-        self.levelsum = np.empty(params.shape, dtype=support_type)
+        self.levelsum = np.empty(params.shape, dtype=self.support_type)
         self._pseudocount = pseudocount
 
         if initialize:
@@ -134,7 +135,7 @@ class Model(object):
         if self.labels != self.context.labels:
             print("updating context!", file=stderr)
             mapping = dict(zip(self.context.labels, range(self.context.num_features)))
-            newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=support_type)
+            newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=self.support_type)
             newparams[[mapping[i] for i in self.labels]] = self.params[:]
             self.params = newparams
             self._levelindex = np.asarray(self.context.levelindex, dtype=label_index_type)
@@ -212,7 +213,7 @@ class Model(object):
             responsibilities = responsibilities[:, cmask]
             self.params = self.params[:, cmask]
 
-        self.params[:] = 0  # zero out values
+        self.params[:] = 0.0  # zero out values
 
         for res, (index_col, support_col) in zip(responsibilities, data.labels):
             # common.print_probvector(res, file=stderr)
@@ -258,6 +259,7 @@ class Model(object):
     def names(self):
         return list(self.get_labels())
 
+    support_type = np.float64  # TODO: check range
     _short_name = "HNB_model"
 
 
@@ -291,7 +293,7 @@ def load_data(input, samples):  # TODO: add load_data from generic with data-spe
 def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    params = np.zeros(shape=(context.num_features, cluster_number), dtype=support_type)
+    params = np.zeros(shape=(context.num_features, cluster_number), dtype=Model.support_type)
     return Model(params, context, initialize=False, **kwargs)
 
 
