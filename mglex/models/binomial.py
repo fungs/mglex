@@ -43,7 +43,7 @@ class Data(object):
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
         self.conterm = np.asarray(common.logbinom(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
 
-        assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
+        # assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
 
         if self.context.num_features is None:
             self.context.num_features = self.num_features
