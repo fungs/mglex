@@ -228,7 +228,7 @@ def weighted_std_iterative(data, weights, dtype=types.large_float_type):
     assert weights.shape == data.shape
     axis = 0
     original_dtype = data.dtype
-    if dtype is not None:
+    if dtype is None:
         dtype = original_dtype
 
     axis = swapindex_2d[axis]  # TODO: remove
@@ -285,8 +285,8 @@ def weighted_std_iterative(data, weights, dtype=types.large_float_type):
                 data_weighted_var[i] = np.sqrt((d*w).sum(dtype=dtype)) * (shrink_divisor/np.sqrt(variance_divisor)) #np.average(np.array(d, dtype=types.large_float_type), weights=w)
             except FloatingPointError:
                 stderr.write("Error in weighted variance calculation: probable overflow in weights*coverage calculation.\n")
-                # raise FloatingPointError
-                data_weighted_var[i] = np.inf
+                raise FloatingPointError
+                # data_weighted_var[i] = np.inf
 
         assert data_weighted_var[i] >= 0.0
         # data_weighted_var_mask[i] = False
