@@ -51,7 +51,7 @@ def pairs(n):
 
 
 # TODO: incorporate weights, filter possible pairs before matrix arithmetics
-def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
+def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, blocksize=None, compress=False):
     assert lmat.shape == pmat.shape
 
     lmat = np.exp(lmat)
@@ -62,13 +62,6 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
     # default blocksize set to input matrix size
     if not blocksize:
         blocksize = n
-
-    # random subsampling, if requested
-    if subsample and subsample < n:
-        rows_sampling = np.random.choice(n, subsample, replace=False)
-        lmat = lmat[rows_sampling]
-        pmat = pmat[rows_sampling]
-        n = subsample
 
     # compress if requested
     if compress:
@@ -103,7 +96,7 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
     return mse
 
 
-def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
+def expected_pairwise_clustering(lmat, pmat, weights=None, blocksize=None, compress=False):
     assert lmat.shape == pmat.shape
 
     lmat = np.exp(lmat)
@@ -114,13 +107,6 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
     # default blocksize set to input matrix size
     if not blocksize:
         blocksize = n
-
-    # random subsampling, if requested
-    if subsample and subsample < n:
-        rows_sampling = np.random.choice(n, subsample, replace=False)
-        lmat = lmat[rows_sampling]
-        pmat = pmat[rows_sampling]
-        n = subsample
 
     # compress if requested
     if compress:
@@ -166,13 +152,13 @@ def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
     for i in range(c):
         r = np.exp(pmat[:, (i,)])
         wn = r * weights
-        sizes[i] = wn_sum = wn.sum()
+        sizes[i] = wn_sum = wn.sum(dtype=types.large_float_type)
         if not wn_sum:  # skip unnecessary computations and invalid warnings
             scores[i] = np.nan
             continue
         wn /= wn_sum
         wa = (1.0 - r) * weights
-        wa /= wa.sum()
+        wa /= wa.sum(dtype=types.large_float_type)
         l = lmat[:, i]
         scores[i] = twoclass_separation_onecolumn(l, wn, wa)
 
@@ -185,7 +171,8 @@ def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
 
 def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     # TODO: do cumulative arrays and array arithmetics
-    like = -like[~np.isnan(like)]
+    m = ~np.isnan(like)
+    like = -like[m]
     order = np.argsort(like, axis=0)
 
     error = 0.0
@@ -194,7 +181,7 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
 
     l_last = 0.0
     width = 0.0
-    for l, wn, wa, step in zip(np.nan_to_num(like[order]), weights_null[order], weights_alt[order], itertools.count()):  # TODO: stop loop when wn_cumulative == 0.0
+    for l, wn, wa, step in zip(np.nan_to_num(like[order]), weights_null[m][order], weights_alt[m][order], itertools.count()):  # TODO: stop loop when wn_cumulative == 0.0
         step_size = l - l_last
         if step_size > 0.0:
             height = wn_cumulative * wa_cumulative
@@ -213,6 +200,13 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     error += box
     error /= l_last
     return error
+
+
+def mean_squarred_error(lmat, pmat, weights):
+    """Square-rooted mean squared error as a fast evaluation score"""
+    assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
+    mse = np.sum(np.sum((np.exp(lmat) - np.exp(pmat))**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
+    return np.sqrt(mse/np.sum(weights)/2.0)
 
 
 if __name__ == "__main__":

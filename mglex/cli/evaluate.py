@@ -36,6 +36,7 @@ Usage:
 """
 
 import sys
+import numpy as np
 
 # some ugly code which makes this run as a standalone script
 try:  # when run inside module
@@ -51,8 +52,9 @@ except SystemError:  # when run independenly, needs mglex package in path
 __author__ = "johannes.droege@uni-duesseldorf.de"
 from mglex import __version__
 
-methods = { "separation" : lambda l, p, w, s: evaluation.twoclass_separation(l, p, w),
-            "co-clustering" : lambda l, p, w, s: evaluation.expected_pairwise_clustering(l, p, w, s)
+methods = { "separation" : evaluation.twoclass_separation,
+            "co-clustering" : evaluation.expected_pairwise_clustering,
+            "mse" : evaluation.mean_squarred_error
             }
 
 
@@ -60,11 +62,6 @@ def main(argv):
     from docopt import docopt
     argument = docopt(__doc__, argv=argv, version=__version__)
     common.handle_broken_pipe()
-
-    try:
-        common.set_random_seed(int(argument["--random-seed"]))
-    except TypeError:
-        sys.stderr.write("No random seed given, consider setting a random seed for better reproducibility.\n")
 
     subsample = argument["--subsample"]
     try:
@@ -79,9 +76,21 @@ def main(argv):
         likelihood = common.load_probmatrix(sys.stdin)
 
     responsibility = common.load_probmatrix_file(argument["--responsibility"])
-    weight = common.load_seqlens_file(argument["--weight"])
+    weights = common.load_seqlens_file(argument["--weight"])
+    # weights = 100.0*np.asarray(weights/weights.max(), dtype=types.prob_type)  # TODO: refactor
 
-    score = methods[argument["--method"]](likelihood, responsibility, weight, subsample)
+    n = likelihood.shape[0]
+    if subsample and subsample < n:  # random subsampling, if requested
+        try:
+            common.set_random_seed(int(argument["--random-seed"]))
+        except TypeError:
+            sys.stderr.write("No random seed given, consider setting a random seed for better reproducibility.\n")
+
+        rows_sampling = np.random.choice(n, subsample, replace=False)
+        likelihood = likelihood[rows_sampling]
+        responsibility = responsibility[rows_sampling]
+
+    score = methods[argument["--method"]](likelihood, responsibility, weights)
     sys.stdout.write("%f\n" %score)
 
 
