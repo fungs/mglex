@@ -20,6 +20,11 @@ Method "separation":
  classes at a specific likelihood value.This measure can be generalized to pairs of sequences which should _not_ belong
  together in a cluster (between) and for fuzzy label distributions.
 
+Method "mse":
+ Mean squared error is a fast evalution measure which is the summed squared differencec per datum between the true
+ (responsibility) posterior and the predicted posterior distribution. Input likelihood must be normalized so that it
+ sums to one over all classes.
+
 Usage:
   classify  (--help | --version)
   classify  (--responsibility <file>) (--method <method>) (--weight <file>)
