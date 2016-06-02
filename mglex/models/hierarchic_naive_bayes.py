@@ -140,12 +140,15 @@ class Model(object):
             self.params = newparams
             self._levelindex = np.asarray(self.context.levelindex, dtype=label_index_type)
             self.labels = self.context.labels[:]
+            self.levelsum = np.empty(self.params.shape, dtype=self.support_type)
             self.update()
 
     def update(self):  # update parameters without change of feature set
         # print("params")
         # print(self.params.shape)
         # print(self.params, file=stderr)
+        # print(self.params.shape, self.levelsum.shape, file=stderr)
+        # assert self.params.shape == self.levelsum.shape
         for i, j in zip(self._levelindex, self._levelindex[1:]):  # TODO: advanced slicing with np.r_?
             self.levelsum[i:j] = self.params[i:j].sum(axis=0)
         # print("levelsum")
