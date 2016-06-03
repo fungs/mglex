@@ -2,8 +2,8 @@
 
 u"""
 This is the main program which takes a raw (negatively log-scaled) likelihood matrix and a class soft class assignment
-matrix (responsibility) and corresponding weights, e.g. sequence lengths, Fall all input, each row corresponds to one
-datum  and each column corresponds to a class.
+matrix (responsibility) and corresponding weights, e.g. sequence lengths. Each input row corresponds to one datum  and
+each column corresponds to a class/genome.
 
 Method "co-clustering":
  Calculates the evaluation statistic
@@ -21,7 +21,7 @@ Method "separation":
  together in a cluster (between) and for fuzzy label distributions.
 
 Method "mse":
- Mean squared error is a fast evalution measure which is the summed squared differencec per datum between the true
+ Mean squared error is a fast evaluation measure which is the summed squared difference per datum between the true
  (responsibility) posterior and the predicted posterior distribution. Input likelihood must be normalized so that it
  sums to one over all classes.
 
