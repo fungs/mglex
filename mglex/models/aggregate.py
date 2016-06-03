@@ -50,6 +50,7 @@ class AggregateData(list):  # TODO: rename CompositeData
 class AggregateModel(list):  # TODO: rename CompositeModel, implement update() and maximize_likelihood()
     def __init__(self, *args, **kw):
         super(AggregateModel, self).__init__(*args, **kw)
+        self.beta_correction = 1.0
 
     @property
     def names(self):
@@ -70,7 +71,7 @@ class AggregateModel(list):  # TODO: rename CompositeModel, implement update() a
         #assert self.weights.size == len(self)
 
         ll_scale = np.asarray([m.stdev if m.stdev > 0.0 else 0.1 for m in self])  # stdev of zero is not allowed, quick workaround!
-        ll_weights = (ll_scale.sum()/ll_scale.size**2)/ll_scale
+        ll_weights = self.beta_correction*(ll_scale.sum()/ll_scale.size**2)/ll_scale
         ll_per_model = np.asarray([w*m.log_likelihood(d) for (m, d, w) in zip(self, data, ll_weights)])  # TODO: reduce memory usage, de-normalize scale
 
         s = np.mean(np.exp(ll_per_model), axis=1)  # TODO: remove debug calculations

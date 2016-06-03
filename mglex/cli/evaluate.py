@@ -28,16 +28,17 @@ Method "mse":
 Usage:
   classify  (--help | --version)
   classify  (--responsibility <file>) (--method <method>) (--weight <file>)
-            [--likelihood <file>] [--subsample <int>] [--random-seed <int>]
+            [--likelihood <file>] [--subsample <int>] [--random-seed <int>] [--beta <from(:to:step)>]...
 
-  -h, --help                           Show this screen
-  -v, --version                        Show version
-  -l <file>, --likelihood <file>       Likelihood matrix; default standard input
-  -r <file>, --responsibility <file>   Responsibility (weight) matrix file
-  -w <file>, --weight <file>           Weights (sequence length) file
-  -m <method>, --method                Evaluation method; one of "separation", "co-clustering"
-  -s <int>, --subsample                Subsample this number of data points for speedup (only co-clustering)
-  -z <int>, --random-seed              Seed for random operations
+  -h, --help                                    Show this screen
+  -v, --version                                 Show version
+  -l <file>, --likelihood <file>                Likelihood matrix; default standard input
+  -r <file>, --responsibility <file>            Responsibility (weight) matrix file
+  -w <file>, --weight <file>                    Weights (sequence length) file
+  -m <method>, --method <method>                Evaluation method; one of "separation", "co-clustering"
+  -s <int>, --subsample <int>                   Subsample this number of data points for speedup (only co-clustering)
+  -z <int>, --random-seed <int>                 Seed for random operations
+  -b <from(:to:step)>, --beta <from(:to:step)>  Beta correction factor(s) to evaluate; default 1.0
 """
 
 import sys
@@ -57,10 +58,10 @@ except SystemError:  # when run independenly, needs mglex package in path
 __author__ = "johannes.droege@uni-duesseldorf.de"
 from mglex import __version__
 
-methods = { "separation" : evaluation.twoclass_separation,
-            "co-clustering" : evaluation.expected_pairwise_clustering,
-            "mse" : evaluation.mean_squarred_error
-            }
+methods = {"separation": evaluation.twoclass_separation,
+           "co-clustering": evaluation.expected_pairwise_clustering,
+           "mse": evaluation.mean_squarred_error
+          }
 
 
 def main(argv):
@@ -68,11 +69,26 @@ def main(argv):
     argument = docopt(__doc__, argv=argv, version=__version__)
     common.handle_broken_pipe()
 
+    # print(argument["--beta"])
+
     subsample = argument["--subsample"]
     try:
         subsample = int(subsample)
     except TypeError:
         pass
+
+    if argument["--beta"]:
+        betalist_tmp = set()
+        for s in argument["--beta"]:
+            if ':' in s:
+                fr, to, step = [float(f) for f in s.split(":")]
+                betalist_tmp |= frozenset(np.arange(fr, to, step))
+            else:
+                betalist_tmp.add(float(s))
+        betalist = sorted(betalist_tmp)
+
+    else:
+        betalist = [1.0]
 
     # load input
     if argument["--likelihood"]:
@@ -94,9 +110,17 @@ def main(argv):
         rows_sampling = np.random.choice(n, subsample, replace=False)
         likelihood = likelihood[rows_sampling]
         responsibility = responsibility[rows_sampling]
+        weights = weights[rows_sampling]
 
-    score = methods[argument["--method"]](likelihood, responsibility, weights)
-    sys.stdout.write("%f\n" %score)
+    if argument["--method"] == "separation":  # no exp and no beta scaling
+            score = methods[argument["--method"]](likelihood, responsibility, weights)
+            sys.stdout.write("%.4f\n" % (score))
+    else:
+        responsibility = np.exp(responsibility)
+        for beta in betalist:
+            likelihood_tmp = common.exp_normalize(beta*likelihood)
+            score = methods[argument["--method"]](likelihood_tmp, responsibility, weights, logarithmic=False)
+            sys.stdout.write("%.2f\t%.4f\n" % (beta, score))
 
 
 if __name__ == "__main__":
