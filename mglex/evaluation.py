@@ -51,11 +51,12 @@ def pairs(n):
 
 
 # TODO: incorporate weights, filter possible pairs before matrix arithmetics
-def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, blocksize=None, compress=False):
+def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, logarithmic=True, blocksize=None, compress=False):  # TODO: implement weights
     assert lmat.shape == pmat.shape
 
-    lmat = np.exp(lmat)
-    pmat = np.exp(pmat)
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
 
     n, c = lmat.shape
 
@@ -96,11 +97,12 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, blocksize=N
     return mse
 
 
-def expected_pairwise_clustering(lmat, pmat, weights=None, blocksize=None, compress=False):
+def expected_pairwise_clustering(lmat, pmat, weights=None, logarithmic=True, blocksize=None, compress=False):  # TODO: implement weights
     assert lmat.shape == pmat.shape
 
-    lmat = np.exp(lmat)
-    pmat = np.exp(pmat)
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
 
     n, c = lmat.shape
 
@@ -143,8 +145,12 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, blocksize=None, compr
     return mse
 
 
-def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
+def twoclass_separation(lmat, pmat, weights=None, logarithmic=True):  # TODO: vectorize   # TODO: implement weights==None?
     assert lmat.shape == pmat.shape
+
+    if not logarithmic:
+        lmat = np.log(lmat)
+        pmat = np.log(pmat)
 
     c = lmat.shape[1]
     scores = np.zeros(c, dtype=types.large_float_type)
@@ -202,10 +208,15 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     return error
 
 
-def mean_squarred_error(lmat, pmat, weights):
+def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: implement weights==None?
     """Square-rooted mean squared error as a fast evaluation score"""
+
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
+
     assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
-    mse = np.sum(np.sum((np.exp(lmat) - np.exp(pmat))**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
+    mse = np.sum(np.sum((lmat - pmat)**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
     return np.sqrt(mse/np.sum(weights)/2.0)
 
 
