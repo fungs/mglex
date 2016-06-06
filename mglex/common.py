@@ -409,7 +409,7 @@ def write_probmatrix_iter(rows, file=stdout):
         file.write("\n")
 
 def write_probmatrix(mat, file=stdout):
-    mat = -np.asarray(mat, types.logprob_type)
+    mat = -np.asarray(mat, dtype=types.logprob_type)
     for row in mat:
         file.write("\t".join(["%.2f" % i for i in row]))
         file.write("\n")
