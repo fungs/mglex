@@ -120,7 +120,7 @@ def main(argv):
         for beta in betalist:
             likelihood_tmp = common.exp_normalize(beta*likelihood)
             score = methods[argument["--method"]](likelihood_tmp, responsibility, weights, logarithmic=False)
-            sys.stdout.write("%.2f\t%.4f\n" % (beta, score))
+            sys.stdout.write("%.2f\t%.6f\n" % (beta, score))
 
 
 if __name__ == "__main__":
