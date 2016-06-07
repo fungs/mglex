@@ -91,10 +91,10 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, logarithmic
 
     error = prob_sum/norm_term
 
-    wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
-    mse = np.sqrt(np.sum(error**2))
-    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
-    return mse
+    mpc = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    # mse = np.sqrt(np.sum(error**2))
+    # sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mpc
 
 
 def expected_pairwise_clustering(lmat, pmat, weights=None, logarithmic=True, blocksize=None, compress=False):  # TODO: implement weights
@@ -139,10 +139,10 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, logarithmic=True, blo
     with np.errstate(invalid='ignore'):
         error = prob_sum/norm_term
 
-    wmean = np.nanmean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
-    mse = np.sqrt(np.nansum(error**2))
-    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
-    return mse
+    mpc = np.nanmean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    # mse = np.sqrt(np.nansum(error**2))
+    # sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mpc
 
 
 def twoclass_separation(lmat, pmat, weights=None, logarithmic=True):  # TODO: vectorize   # TODO: implement weights==None?
