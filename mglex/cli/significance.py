@@ -51,7 +51,7 @@ class PValue(object):
             if ll >= self.ll[i]:
                 self.i = i
                 return self.pval[i]
-        return 0.0
+        return -np.inf
 
 
 def main(argv):
