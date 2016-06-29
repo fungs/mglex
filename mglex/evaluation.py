@@ -218,7 +218,7 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
 
     assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
     mse = np.sum(np.sum((lmat - pmat)**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
-    return np.sqrt(mse/np.sum(weights)/2.0)
+    return np.sqrt(mse/np.sum(weights)/4.0)
 
 
 def bin_distance_pairwise(col1, col2, weights, weights_sum=None, col1_sum=None, col2_sum=None):
