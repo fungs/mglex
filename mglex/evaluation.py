@@ -221,90 +221,23 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
     return np.sqrt(mse/np.sum(weights)/4.0)
 
 
-def bin_distance_pairwise(col1, col2, weights, weights_sum=None, col1_sum=None, col2_sum=None):
-    if col1_sum is None:
-        col1_sum = np.sum(col1)
+def kbl_similarity(col1, col2, ratio1):
+    with np.errstate(over='ignore', divide='ignore'):
+        ratio2 = np.divide(1.0, ratio1, dtype=types.large_float_type)
+    sim = ratio1 + ratio2
+    assert np.all(~np.isnan(sim))
+    np.divide(2.0, sim, out=sim)
+    with np.errstate(invalid='ignore'):
+        mix1 = np.divide(col1 + col2*ratio2, ratio2 + 1.)
+    # mix2 = np.divide(2*col2, ratio2 + 1.)
+    mix1_norm = mix1/np.nansum(mix1)
+    # mix2_norm = mix2/np.nansum(mix2)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        log_sim = mix1_norm*np.log(sim)
 
-    if col2_sum is None:
-        col2_sum = np.sum(col2)
-
-    if weights_sum is None:
-        weights_sum = np.sum(weights)
-
-    component_wise_naive = np.divide((4*col1*col2), (col1+col2)**2)
-    likelihood_weights_naive = (col1+col2)/(col1_sum+col2_sum)
-    order = np.argsort(likelihood_weights_naive, axis=0)
-    print(component_wise_naive[order][-10:-1], likelihood_weights_naive[order][-10:-1])
-    return np.sum(np.multiply(component_wise_naive, likelihood_weights_naive))
-
-
-    normterm = col1_sum+col2_sum
-    factor = 4.0/normterm
-    # factor = 4.0/(col1_sum+col2_sum)
-    # factor = 4.0/(np.sum(col1)+np.sum(col2))
-    print(col1.shape, col2.shape, weights.shape)
-    nominator = 4*np.multiply(col1, col2)
-    denominator = col1 + col2  # special case when both are zero!
-
-    component_wise = (nominator/denominator)
-    component_sum = np.sum(component_wise, dtype=types.large_float_type)
-
-    print(factor.shape, nominator.shape, denominator.shape)
-    print(factor, nominator[0], denominator[0], component_wise[0], file=sys.stderr)
-
-    print(component_sum, normterm)
-    return component_sum/normterm
-
-    # return 4.0*np.sum((col1*col2)/(col1+col2))/(col1_sum+col2_sum)
-    return factor * np.sum(nominator/denominator)
-
-
-def S1(col1, col2):
-    return np.divide(4*np.multiply(col1, col2), (col1+col2)**2)
-
-def S2n(col1, col2):
-    with np.errstate(invalid="ignore", divide="ignore"):
-        ratios = np.vstack((np.divide(col1, col2), np.divide(col2, col1)))
-        ratiosum = np.nansum(ratios, axis=0)
-        assert np.all(~np.isnan(ratiosum))
-        # print("# NaN:", np.sum(np.isnan(ratiosum)), file=sys.stderr)
-        # print("# Inf:", np.sum(np.isinf(ratiosum)), file=sys.stderr)
-        np.divide(2.0, ratiosum, out=ratiosum)
-    return ratiosum
-
-def S2n_log(col1, col2):
-    with np.errstate(over='ignore'):
-        ratios = np.exp(np.vstack((col1-col2, col2-col1)), dtype=types.large_float_type)
-    ratiosum = np.sum(ratios, axis=0, dtype=types.large_float_type)
-    assert np.all(~np.isnan(ratiosum))
-    # print("# NaN:", np.sum(np.isnan(ratiosum)), file=sys.stderr)
-    # print("# Inf:", np.sum(np.isinf(ratiosum)), file=sys.stderr)
-    np.divide(2.0, ratiosum, out=ratiosum)
-    return ratiosum
-
-def S2(col1, col2):
-    return np.divide(2*np.multiply(col1, col2), (col1**2+col2**2))
-
-def S4(col1, col2):
-    return np.sqrt(S1(col1, col2))
-
-def similarity_diagnostics(col1, col2, fn):
-    components = fn(col1, col2)
-    col1_sum, col2_sum = col1.sum(dtype=types.large_float_type), col2.sum(dtype=types.large_float_type)
-    lweights = np.divide(col1+col2, col1_sum+col2_sum)
-    # order = np.argsort(lweights, axis=0)
-    # print("components:", components[order][-2:-1], "weights:", lweights[order][-2:-1])
-    return np.nansum(np.multiply(lweights, components), dtype=types.large_float_type)
-
-def log_similarity_diagnostics(col1, col2, fn):
-    components = fn(col1, col2)
-    col1 = np.exp(col1, dtype=types.large_float_type)  # TODO: use exp_normalize
-    col2 = np.exp(col2, dtype=types.large_float_type)  # TODO: use exp_normalize
-    col1_sum, col2_sum = col1.sum(), col2.sum()
-    lweights = np.divide(col1+col2, col1_sum+col2_sum)
-    # order = np.argsort(lweights, axis=0)
-    # print("components:", components[order][-2:-1], "weights:", lweights[order][-2:-1])
-    return np.nansum(np.multiply(lweights, components), dtype=types.large_float_type)
+    # for x in zip(log_sim, np.log(mix1), sim, np.log(col1), np.log(col2), np.log(mix1), np.log(mix2), np.log(mix1_norm), np.log(mix2_norm)):
+    #     sys.stderr.write("%.10f\t%.2f\t%.2f\tlike:[%.2f;%.2f]\tmix:[%.2f;%.2f]\tmix_norm:[%.2f;%.2f]\n" % x)
+    return log_sim
 
 
 def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
@@ -313,33 +246,28 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
     mat = np.exp(logmat, dtype=types.large_float_type)
     n = mat.shape[1]
     smat = np.zeros(shape=(n, n), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
-    lsums = np.sum(mat, axis=0)
+    # lsums = np.sum(mat, axis=0)
     # wsum = np.sum(weights, dtype=types.large_float_type)
     # w2 = np.divide(weights, wsum).ravel()
 
     for i in range(n):
+        col1 = mat.take(i, axis=1)  # np.exp(log_col1, dtype=types.large_float_type)  # TODO: use exp_normalize
+        log_col1 = logmat.take(i, axis=1)
         for j in range(i+1, n):
-            col1 = mat.take(i, axis=1)  # np.exp(log_col1, dtype=types.large_float_type)  # TODO: use exp_normalize
             col2 = mat.take(j, axis=1)  # np.exp(log_col2, dtype=types.large_float_type)  # TODO: use exp_normalize
-            log_col1 = logmat.take(i, axis=1)
             log_col2 = logmat.take(j, axis=1)
-            c = S2n_log(log_col1, log_col2)
-            # c = S2n(col1, col2)  # numerically less stable
-            w1 = np.divide(col1+col2, lsums[i]+lsums[j])
-            with np.errstate(invalid='ignore'):
-                p = np.nansum(np.multiply(w1, c))
-            #print("%i vs. %i: %.2f" % (i, j, p), file=sys.stderr)
-            if p > 1.0:
-                warnings.warn("Similarity larger than 1.0", UserWarning)
-                cskew = np.any(c > 1.0)
-                if cskew:
-                    warnings.warn("Component similarity larger than 1.0", UserWarning)
 
-            if p > 0:
-                if p >= 1.0:
-                    smat[i, j] = smat[j, i] = 0.0
-                else:
-                    smat[i, j] = smat[j, i] = np.log(p)  # TODO: better call log on entire results matrix
+            with np.errstate(over='ignore'):
+                ratio1 = np.exp(log_col1-log_col2, dtype=types.large_float_type)
+
+            p = np.nansum(kbl_similarity(col1, col2, ratio1))
+
+            if p >= .0:
+                smat[i, j] = smat[j, i] = 0.0
+                if p > .0:
+                    warnings.warn("Similarity larger than 1.0", UserWarning)
+            else:
+                smat[i, j] = smat[j, i] = p
     return smat
 
 
