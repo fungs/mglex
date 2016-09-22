@@ -40,6 +40,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self._label_mapping = common.NestedCountIndex()
         self._labels = []  # TODO: operate on separate deque objects?
         self.labels = None
+        self.mean_support = None
 
         # initialize indices and labels from context
         for l in context.labels:
@@ -81,6 +82,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self._label_mapping = common.NestedCountIndex()
 
         # replace old by new indices and create numpy arrays inplace TODO: make this two real 2d arrays
+        support_total_sum = 0.
         for i, features in enumerate(self._labels):
             index_col = np.empty(len(features), dtype=label_index_type)
             support_col = np.empty(len(features), dtype=support_type)
@@ -95,10 +97,14 @@ class Data(object):  # TODO: use deque() for large append-only lists
 
             self._labels[i] = (index_col, support_col)
 
+            support_total_sum += support_col.sum()
+
         del index2index  # runs out of scope and should be garbage-collected anyway
 
         self.labels = self._labels
         self._labels = []
+
+        self.mean_support = support_total_sum/self.num_data
 
         # print(self.context.levelindex)
         return self
@@ -162,11 +168,9 @@ class Model(object):
                 loglike[i] = 0
                 continue
 
-            supportcol_norm = supportcol / supportcol.sum()
-
             #denominator = supportcol.sum()  # replace by relative weights in data and length normalization
             #assert np.all(denominator != 0.0)
-            ll = np.dot(supportcol_norm, self._log_frequencies[indexcol])
+            ll = np.dot(supportcol, self._log_frequencies[indexcol])
 
             # if not np.all(numerator != 0.):
             #     print(pretty_probvector(numerator), file=stderr)
@@ -195,7 +199,7 @@ class Model(object):
             #     probs = numerator/denominator
 
             # ll = np.log(probs)  # TODO: or log - log
-            loglike[i] = ll
+            loglike[i] = ll/data.mean_support
 
         assert np.all(loglike <= .0)
         return loglike
@@ -241,12 +245,12 @@ class Model(object):
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
-        common.write_probmatrix(ll, file=stdout)
+        # common.write_probmatrix(ll, file=stdout)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
         weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
         relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
-        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
         # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
         stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
         self.stdev = combined_std
