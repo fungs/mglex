@@ -14,7 +14,7 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 
 # label data type
 label_index_type = np.uint32  # TODO: check range
-support_type = np.uint64  # TODO: check range
+support_type = np.float64  # TODO: check range
 
 
 class Context(object):
@@ -124,7 +124,7 @@ class Model(object):
         self._levelindex = np.asarray(context.levelindex, dtype=label_index_type)
         self.levelsum = np.empty(params.shape, dtype=support_type)
         self._pseudocount = pseudocount
-        self._frequencies = None
+        self._log_frequencies = None
 
         if initialize:
             self.update()
@@ -151,7 +151,7 @@ class Model(object):
         # print("levelsum")
         # print(self.levelsum.shape)
         # print(self.levelsum)
-        self._frequencies = self.params / self.levelsum
+        self._log_frequencies = np.log(self.params / self.levelsum)
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check
@@ -162,11 +162,11 @@ class Model(object):
                 loglike[i] = 0
                 continue
 
+            supportcol_norm = supportcol / supportcol.sum()
 
-
-            denominator = supportcol.sum()  # replace by relative weights in data and length normalization
+            #denominator = supportcol.sum()  # replace by relative weights in data and length normalization
             #assert np.all(denominator != 0.0)
-            numerator = np.dot(supportcol, self._frequencies[indexcol])
+            ll = np.dot(supportcol_norm, self._log_frequencies[indexcol])
 
             # if not np.all(numerator != 0.):
             #     print(pretty_probvector(numerator), file=stderr)
@@ -189,12 +189,12 @@ class Model(object):
             #print(pretty_probvector(numerator),file=stderr)
             #print(pretty_probvector(denominator), file=stderr)
 
-            if self._pseudocount:
-                probs = (numerator+1)/(denominator+1)
-            else:
-                probs = numerator/denominator
+            # if self._pseudocount:
+            #     probs = (numerator+1)/(denominator+1)
+            # else:
+            #     probs = numerator/denominator
 
-            ll = np.log(probs)  # TODO: or log - log
+            # ll = np.log(probs)  # TODO: or log - log
             loglike[i] = ll
 
         assert np.all(loglike <= .0)
@@ -215,7 +215,10 @@ class Model(object):
             responsibilities = responsibilities[:, cmask]
             self.params = self.params[:, cmask]
 
-        self.params[:] = 0  # zero out values
+        if self._pseudocount:
+            self.params[:] = 1
+        else:
+            self.params[:] = 0  # zero out values
 
         for res, (index_col, support_col) in zip(responsibilities, data.labels):
             # common.print_probvector(res, file=stderr)
@@ -238,11 +241,12 @@ class Model(object):
 
         dimchange = self.update()  # create cache for likelihood calculations
         ll = self.log_likelihood(data)
+        common.write_probmatrix(ll, file=stdout)
         std_per_class = np.sqrt(common.weighted_variance(ll, weights_combined))
         weight_per_class = weights_combined.sum(axis=0, dtype=types.large_float_type)
         relative_weight_per_class = np.asarray(weight_per_class / weight_per_class.sum(), dtype=types.prob_type)
         combined_std = np.dot(std_per_class, relative_weight_per_class)
-        # stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
+        stderr.write("Weighted stdev was: %s\n" % common.pretty_probvector(std_per_class))
         # stderr.write("Weighted combined stdev was: %.2f\n" % combined_std)
         stderr.write("LOG %s: class likelihood standard deviation is %.2f\n" % (self._short_name, combined_std))
         self.stdev = combined_std
