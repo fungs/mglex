@@ -51,24 +51,18 @@ def pairs(n):
 
 
 # TODO: incorporate weights, filter possible pairs before matrix arithmetics
-def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
+def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, logarithmic=True, blocksize=None, compress=False):  # TODO: implement weights
     assert lmat.shape == pmat.shape
 
-    lmat = np.exp(lmat)
-    pmat = np.exp(pmat)
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
 
     n, c = lmat.shape
 
     # default blocksize set to input matrix size
     if not blocksize:
         blocksize = n
-
-    # random subsampling, if requested
-    if subsample and subsample < n:
-        rows_sampling = np.random.choice(n, subsample, replace=False)
-        lmat = lmat[rows_sampling]
-        pmat = pmat[rows_sampling]
-        n = subsample
 
     # compress if requested
     if compress:
@@ -97,30 +91,24 @@ def expected_pairwise_clustering_nonsparse(lmat, pmat, weights=None, subsample=N
 
     error = prob_sum/norm_term
 
-    wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
-    mse = np.sqrt(np.sum(error**2))
-    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
-    return mse
+    mpc = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    # mse = np.sqrt(np.sum(error**2))
+    # sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mpc
 
 
-def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, blocksize=None, compress=False):
+def expected_pairwise_clustering(lmat, pmat, weights=None, logarithmic=True, blocksize=None, compress=False):  # TODO: implement weights
     assert lmat.shape == pmat.shape
 
-    lmat = np.exp(lmat)
-    pmat = np.exp(pmat)
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
 
     n, c = lmat.shape
 
     # default blocksize set to input matrix size
     if not blocksize:
         blocksize = n
-
-    # random subsampling, if requested
-    if subsample and subsample < n:
-        rows_sampling = np.random.choice(n, subsample, replace=False)
-        lmat = lmat[rows_sampling]
-        pmat = pmat[rows_sampling]
-        n = subsample
 
     # compress if requested
     if compress:
@@ -148,16 +136,21 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, subsample=None, block
         prob_sum += np.sum(block_prob_sum, axis=0, dtype=types.large_float_type)
         norm_term += np.sum(lprob, axis=0, dtype=types.large_float_type)
 
-    error = prob_sum/norm_term
+    with np.errstate(invalid='ignore'):
+        error = prob_sum/norm_term
 
-    wmean = np.mean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
-    mse = np.sqrt(np.sum(error**2))
-    sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
-    return mse
+    mpc = np.nanmean(error)  # TODO: use weighted mean here and in the separation method? -> both and unify
+    # mse = np.sqrt(np.nansum(error**2))
+    # sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(error)))
+    return mpc
 
 
-def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
+def twoclass_separation(lmat, pmat, weights=None, logarithmic=True):  # TODO: vectorize   # TODO: implement weights==None?
     assert lmat.shape == pmat.shape
+
+    if not logarithmic:
+        lmat = np.log(lmat)
+        pmat = np.log(pmat)
 
     c = lmat.shape[1]
     scores = np.zeros(c, dtype=types.large_float_type)
@@ -165,24 +158,27 @@ def twoclass_separation(lmat, pmat, weights):  # TODO: vectorize
     for i in range(c):
         r = np.exp(pmat[:, (i,)])
         wn = r * weights
-        wn_sum = wn.sum()
+        sizes[i] = wn_sum = wn.sum(dtype=types.large_float_type)
+        if not wn_sum:  # skip unnecessary computations and invalid warnings
+            scores[i] = np.nan
+            continue
         wn /= wn_sum
         wa = (1.0 - r) * weights
-        wa /= wa.sum()
+        wa /= wa.sum(dtype=types.large_float_type)
         l = lmat[:, i]
         scores[i] = twoclass_separation_onecolumn(l, wn, wa)
-        sizes[i] = wn_sum
 
     classpriors = sizes/sizes.sum()
-    wmean = np.sum(classpriors*scores)
-    mse = np.sqrt(np.sum((scores**2)*classpriors))
+    wmean = np.nansum(classpriors*scores)
+    mse = np.sqrt(np.nansum((scores**2)*classpriors))
     sys.stderr.write("%f\t%f\t%s\n" % (wmean, mse, common.pretty_probvector(scores)))
     return mse
 
 
 def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     # TODO: do cumulative arrays and array arithmetics
-    like = -like
+    m = ~np.isnan(like)
+    like = -like[m]
     order = np.argsort(like, axis=0)
 
     error = 0.0
@@ -190,9 +186,8 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     wa_cumulative = types.large_float_type(0.0)
 
     l_last = 0.0
-    step_size = 0.0
     width = 0.0
-    for l, wn, wa, step in zip(like[order], weights_null[order], weights_alt[order], itertools.count()):  # TODO: stop loop when wn_cumulative == 0.0
+    for l, wn, wa, step in zip(np.nan_to_num(like[order]), weights_null[m][order], weights_alt[m][order], itertools.count()):  # TODO: stop loop when wn_cumulative == 0.0
         step_size = l - l_last
         if step_size > 0.0:
             height = wn_cumulative * wa_cumulative
@@ -211,6 +206,18 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     error += box
     error /= l_last
     return error
+
+
+def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: implement weights==None?
+    """Square-rooted mean squared error as a fast evaluation score"""
+
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
+
+    assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
+    mse = np.sum(np.sum((lmat - pmat)**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
+    return np.sqrt(mse/np.sum(weights)/2.0)
 
 
 if __name__ == "__main__":
