@@ -9,7 +9,7 @@ probabilities, also called the responsibility matrix in the context of mixture m
 Usage:
   classify  (--help | --version)
   classify  (--model <file>) [--abcoverage <file>] [--diffcoverage <file>] [--composition <file>]
-                             [--labels <file>] [--logfile <file>] [--normalize]
+                             [--labels <file>] [--beta <float>] [--logfile <file>] [--normalize]
 
   -h, --help                        Show this screen
   -v, --version                     Show version
@@ -19,13 +19,11 @@ Usage:
   -d <file>, --diffcoverage <file>  Differential mean coverage data file for Binomial Model
   -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>        Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
+  -b <float>, --beta <float>        Beta correction factor (e.g. determined via MSE evaluation); default 1.0
   -l <file>, --logfile <file>       File for logging
 """
 
 # TODO: support multiple arguments of the same kind, like multiple label input data
-
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
 
 import numpy as np
 import sys
@@ -40,6 +38,9 @@ except SystemError:  # when run independenly, needs mglex package in path
         from pathlib import Path
         sys.path.append(str(Path(__file__).resolve().parents[2]))
         from mglex import *
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+from mglex import __version__
 
 
 def main(argv):
@@ -68,6 +69,9 @@ def main(argv):
             model_obj.update_context()
             data.append(data_obj)
             # print(data_obj.context, file=sys.stderr)
+
+    if argument["--beta"]:
+        model.beta_correction = argument["--beta"]
 
     mat = model.log_likelihood(data)
 

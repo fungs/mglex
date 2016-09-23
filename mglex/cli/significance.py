@@ -10,11 +10,11 @@ low probability to reduce the size of the dataset.
 
 Usage:
   classify  (--help | --version)
-  classify  (--seqlen <file>) (--nulldata <file>) (--responsibility <file>) [--data <file>]
+  classify  (--weight <file>) (--nulldata <file>) (--responsibility <file>) [--data <file>]
 
   -h, --help                           Show this screen
   -v, --version                        Show version
-  -s <file>, --seqlen <file>           Sequence lengths file
+  -w <file>, --weight <file>           Weights (sequence length) file
   -n <file>, --nulldata <file>         Log-likelihood matrix with reference (null hypothesis) values
   -r <file>, --responsibility <file>   Log-likelihood responsibility matrix
   -d <file>, --data <file>             Log-likelihood matrix for which to calculate p-values; default standard input
@@ -22,11 +22,7 @@ Usage:
 
 # TODO: support multiple arguments of the same kind, like multiple label input data
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
-
 import numpy as np
-from itertools import count
 import sys
 
 # some ugly code which makes this run as a standalone script
@@ -40,6 +36,9 @@ except SystemError:  # when run independently, needs mglex package in path
         sys.path.append(str(Path(__file__).resolve().parents[2]))
         from mglex import *
 
+__author__ = "johannes.droege@uni-duesseldorf.de"
+from mglex import __version__
+
 
 class PValue(object):
     def __init__(self, ll_sorted, pval_sorted):
@@ -52,7 +51,7 @@ class PValue(object):
             if ll >= self.ll[i]:
                 self.i = i
                 return self.pval[i]
-        return 0.0
+        return -np.inf
 
 
 def main(argv):
@@ -73,9 +72,8 @@ def main(argv):
     # load refmatrix and calculate distributions
     nulldata = common.load_probmatrix_file(argument["--nulldata"])  # log-likelihood matrix
     responsibility = common.load_probmatrix_file(argument["--responsibility"])  # log-likelihood matrix
-    weights = common.load_seqlens_file(argument["--seqlen"])
-    weights /= weights.max()
-    weights *= np.exp(responsibility)
+    seqlen = common.load_seqlens_file(argument["--weight"])
+    weights = np.asarray(seqlen/seqlen.max(), dtype=types.prob_type) * np.exp(responsibility)
 
     pvalues = []
     for lcol, rcol in zip(nulldata.T, weights.T):  # TODO: clean up code and save memory: do things inplace

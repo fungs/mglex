@@ -14,9 +14,6 @@ Usage:
   -i <file>, --identifiers <file>   Sequence identifiers; one per line; default standard input
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
-__version__ = "bla"
-
 import sys
 
 # some ugly code which makes this run as a standalone script
@@ -29,6 +26,9 @@ except SystemError:  # when run independenly, needs mglex package in path
         from pathlib import Path
         sys.path.append(str(Path(__file__).resolve().parents[2]))
         from mglex import *
+
+__author__ = "johannes.droege@uni-duesseldorf.de"
+from mglex import __version__
 
 
 def main(argv):
