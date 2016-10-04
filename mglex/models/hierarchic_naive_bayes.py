@@ -141,11 +141,15 @@ class Model(object):
         if self.labels != self.context.labels:
             print("updating context!", file=stderr)
             mapping = dict(zip(self.context.labels, range(self.context.num_features)))
-            newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=support_type)
+            if self._pseudocount:
+                newparams = np.ones(shape=(self.context.num_features, self.num_components), dtype=support_type)
+            else:
+                newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=support_type)
             newparams[[mapping[i] for i in self.labels]] = self.params[:]
             self.params = newparams
             self._levelindex = np.asarray(self.context.levelindex, dtype=label_index_type)
             self.labels = self.context.labels[:]
+            self.levelsum = np.empty(self.params.shape, dtype=support_type)
             self.update()
 
     def update(self):  # update parameters without change of feature set
