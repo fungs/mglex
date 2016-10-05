@@ -12,8 +12,9 @@ import numpy as np
 # from collections import deque
 from sys import argv, exit, stdin, stdout, stderr, exit
 
-# data types
+# label data type
 label_index_type = np.uint32  # TODO: check range
+support_type = np.float64  # TODO: check range
 
 
 class Context(object):
@@ -39,6 +40,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self._label_mapping = common.NestedCountIndex()
         self._labels = []  # TODO: operate on separate deque objects?
         self.labels = None
+        self.mean_support = None
 
         # initialize indices and labels from context
         for l in context.labels:
@@ -47,7 +49,7 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self.num_features = len(self._label_mapping)
 
     def deposit(self, features):
-        features = tuple((self._label_mapping[path], self.support_type(support)) for path, support in features)
+        features = tuple((self._label_mapping[path], support_type(support)) for path, support in features)
         self._labels.append(features)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -80,9 +82,10 @@ class Data(object):  # TODO: use deque() for large append-only lists
         self._label_mapping = common.NestedCountIndex()
 
         # replace old by new indices and create numpy arrays inplace TODO: make this two real 2d arrays
+        support_total_sum = 0.
         for i, features in enumerate(self._labels):
             index_col = np.empty(len(features), dtype=label_index_type)
-            support_col = np.empty(len(features), dtype=self.support_type)
+            support_col = np.empty(len(features), dtype=support_type)
             for j, (index_orig, support) in enumerate(features):
                 index_col[j] = index2index[index_orig]
                 support_col[j] = support
@@ -94,10 +97,14 @@ class Data(object):  # TODO: use deque() for large append-only lists
 
             self._labels[i] = (index_col, support_col)
 
+            support_total_sum += support_col.sum()
+
         del index2index  # runs out of scope and should be garbage-collected anyway
 
         self.labels = self._labels
         self._labels = []
+
+        self.mean_support = support_total_sum/self.num_data
 
         # print(self.context.levelindex)
         return self
@@ -109,8 +116,6 @@ class Data(object):  # TODO: use deque() for large append-only lists
     def __len__(self):
         return self.num_data
 
-    support_type = np.uint64  # TODO: check range
-
 
 class Model(object):
     """A variant of a Naïve Bayes classifier model for hierarchical labels"""
@@ -120,84 +125,45 @@ class Model(object):
         assert params.shape[0] == context.num_features
 
         self.context = context
-        self.params = np.array(params, dtype=self.support_type)  # TODO: use large unsigned integer first, then cut down
+        self.params = np.array(params, dtype=support_type)  # TODO: use large unsigned integer first, then cut down
         self.labels = context.labels[:]
         self._levelindex = np.asarray(context.levelindex, dtype=label_index_type)
-        self.levelsum = np.empty(params.shape, dtype=self.support_type)
+        self.levelsum = np.empty(params.shape, dtype=support_type)
         self._pseudocount = pseudocount
+        self._log_frequencies = None
 
         if initialize:
             self.update()
 
     def update_context(self):  # reorder and resize matrix
-        # print(self.labels, file=stderr)
-        # print(self.context.labels, file=stderr)
         if self.labels != self.context.labels:
             print("updating context!", file=stderr)
             mapping = dict(zip(self.context.labels, range(self.context.num_features)))
-            newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=self.support_type)
+            if self._pseudocount:
+                newparams = np.ones(shape=(self.context.num_features, self.num_components), dtype=support_type)
+            else:
+                newparams = np.zeros(shape=(self.context.num_features, self.num_components), dtype=support_type)
             newparams[[mapping[i] for i in self.labels]] = self.params[:]
             self.params = newparams
             self._levelindex = np.asarray(self.context.levelindex, dtype=label_index_type)
             self.labels = self.context.labels[:]
-            self.levelsum = np.empty(self.params.shape, dtype=self.support_type)
+            self.levelsum = np.empty(self.params.shape, dtype=support_type)
             self.update()
 
     def update(self):  # update parameters without change of feature set
-        # print("params")
-        # print(self.params.shape)
-        # print(self.params, file=stderr)
-        # print(self.params.shape, self.levelsum.shape, file=stderr)
-        # assert self.params.shape == self.levelsum.shape
         for i, j in zip(self._levelindex, self._levelindex[1:]):  # TODO: advanced slicing with np.r_?
             self.levelsum[i:j] = self.params[i:j].sum(axis=0)
-        # print("levelsum")
-        # print(self.levelsum.shape)
-        # print(self.levelsum)
+        self._log_frequencies = np.log(self.params / self.levelsum)
         return False  # indicates whether a dimension change occurred
 
     def log_likelihood(self, data):  # TODO: check
         loglike = np.empty((len(data), self.num_components), dtype=types.logprob_type)
         for i, (indexcol, supportcol) in enumerate(data.labels):  # TODO: vectorize 3d?
-
             if not indexcol.size:  # no label == no observation == perfect fit
                 loglike[i] = 0
                 continue
-
-            denominator = np.dot(supportcol, self.levelsum[indexcol])  ## TODO: check if sum is only added once for each level
-            #assert np.all(denominator != 0.0)
-            numerator = np.dot(supportcol, self.params[indexcol])
-
-
-            # if not np.all(numerator != 0.):
-            #     print(pretty_probvector(numerator), file=stderr)
-            #     print(pretty_probvector(denominator), file=stderr)
-            #     print(pretty_probvector(indexcol), file=stderr)
-            #     print(pretty_probvector(supportcol), file=stderr)
-
-            # if not denominator.all():  # TODO: turn back into assertion
-            # print("datum: %i\n  numerator: %s /\n denominator %s" % (i, numerator, denominator), file=stderr)
-            # print("datum %i" % i, file=stderr)
-            # si = indexcol.argsort()
-            # indexcol_sorted = indexcol[si]
-            # print(indexcol, file=stderr)
-            # print([self.labels[i] for i in indexcol], file=stderr)
-            # print(supportcol, file=stderr)
-            # print(self.params[indexcol], file=stderr)
-            # print(self.levelsum[indexcol], file=stderr)
-            #    exit(1)
-
-            #print(pretty_probvector(numerator),file=stderr)
-            #print(pretty_probvector(denominator), file=stderr)
-
-            if self._pseudocount:
-                probs = (numerator+1)/(denominator+1)
-            else:
-                probs = numerator/denominator
-
-            ll = np.log(probs)  # TODO: or log - log
-            loglike[i] = ll
-
+            ll = np.dot(supportcol, self._log_frequencies[indexcol])
+            loglike[i] = ll/data.mean_support
         assert np.all(loglike <= .0)
         return loglike
 
@@ -216,27 +182,15 @@ class Model(object):
             responsibilities = responsibilities[:, cmask]
             self.params = self.params[:, cmask]
 
-        self.params[:] = 0.0  # zero out values
+        if self._pseudocount:
+            self.params[:] = 1.0
+        else:
+            self.params[:] = 0.0
 
         for res, (index_col, support_col) in zip(responsibilities, data.labels):
-            # common.print_probvector(res, file=stderr)
-            # print(index_col, file=stderr)
-            # print(support_col, file=stderr)
-            # common.print_probmatrix(np.dot(support_col[:, np.newaxis], res[np.newaxis, :]), file=stderr)
-            # print(self.params.shape)
-            # print(support_col[:, np.newaxis].shape)
-            # print(res.T)
-            # print(np.vdot(support_col, res).shape)
-            # print(res, file=stderr)
-            # print(support_col[:, np.newaxis], file=stderr)
-            # print(np.dot(support_col[:, np.newaxis], res[np.newaxis, :]), file=stderr)
             self.params[index_col] += np.dot(support_col[:, np.newaxis], res[np.newaxis, :])  # TODO: check shape match
-            # print(index_col, file=stderr)
-            # print([self.labels[i] for i in index_col], file=stderr)
-            # print(self.params[index_col], file=stderr)
 
         weights_combined = responsibilities * weights
-
         dimchange = self.update()  # create cache for likelihood calculations
 
         # TODO: refactor this block
@@ -262,7 +216,6 @@ class Model(object):
     def names(self):
         return list(self.get_labels())
 
-    support_type = np.float64  # TODO: check range
     _short_name = "HNB_model"
 
 
@@ -296,7 +249,7 @@ def load_data(input, samples):  # TODO: add load_data from generic with data-spe
 def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    params = np.zeros(shape=(context.num_features, cluster_number), dtype=Model.support_type)
+    params = np.zeros(shape=(context.num_features, cluster_number), dtype=support_type)
     return Model(params, context, initialize=False, **kwargs)
 
 
