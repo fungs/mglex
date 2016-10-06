@@ -137,7 +137,6 @@ class Model(object):
 
     def update_context(self):  # reorder and resize matrix
         if self.labels != self.context.labels:
-            print("updating context!", file=stderr)
             mapping = dict(zip(self.context.labels, range(self.context.num_features)))
             if self._pseudocount:
                 newparams = np.ones(shape=(self.context.num_features, self.num_components), dtype=support_type)
