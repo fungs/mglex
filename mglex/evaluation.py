@@ -221,19 +221,28 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
     return np.sqrt(mse/np.sum(weights)/4.0)
 
 
-def kbl_similarity(col1, col2, ratio1):
-    with np.errstate(over='ignore', divide='ignore'):
+def kbl_similarity(col1, col2, ratio1, factor):
+    with np.errstate(over='ignore', divide='ignore'):  # if any ratio is zero or infinity, ignore this
         ratio2 = np.divide(1.0, ratio1, dtype=types.large_float_type)
+    common.print_probmatrix(np.vstack((np.log(col1), np.log(col2))), file=sys.stderr)
+    common.print_probmatrix(np.vstack((ratio1, ratio2)), file=sys.stderr)
     sim = ratio1 + ratio2
     assert np.all(~np.isnan(sim))
     np.divide(2.0, sim, out=sim)
+    common.print_probvector(sim, file=sys.stderr)
     with np.errstate(invalid='ignore'):
-        mix1 = np.divide(col1 + col2*ratio2, ratio2 + 1.)
-    # mix2 = np.divide(2*col2, ratio2 + 1.)
-    mix1_norm = mix1/np.nansum(mix1)
-    # mix2_norm = mix2/np.nansum(mix2)
+        numerator = col1 + col2*ratio2
+        print("number of non-zero entries:", len(numerator[numerator > 0.0]), file=sys.stderr)
+        mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
+        common.print_probmatrix(np.vstack((col1 + col2*ratio2, ratio2 + 1.)), file=sys.stderr)
+
+    common.print_probvector(mix, file=sys.stderr)
+    mix_sum = np.nansum(mix)
+    assert mix_sum
+    # np.divide(mix, factor)
+    np.divide(mix, mix_sum, out=mix)
     with np.errstate(invalid='ignore', divide='ignore'):
-        log_sim = mix1_norm*np.log(sim)
+        log_sim = mix*np.log(sim)
 
     # for x in zip(log_sim, np.log(mix1), sim, np.log(col1), np.log(col2), np.log(mix1), np.log(mix2), np.log(mix1_norm), np.log(mix2_norm)):
     #     sys.stderr.write("%.10f\t%.2f\t%.2f\tlike:[%.2f;%.2f]\tmix:[%.2f;%.2f]\tmix_norm:[%.2f;%.2f]\n" % x)
@@ -243,24 +252,36 @@ def kbl_similarity(col1, col2, ratio1):
 def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
 
-    mat = np.exp(logmat, dtype=types.large_float_type)
-    n = mat.shape[1]
-    smat = np.zeros(shape=(n, n), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
+    # mat = np.exp(logmat, dtype=types.large_float_type)
+    n, d = logmat.shape
+    smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
     # lsums = np.sum(mat, axis=0)
     # wsum = np.sum(weights, dtype=types.large_float_type)
     # w2 = np.divide(weights, wsum).ravel()
 
-    for i in range(n):
-        col1 = mat.take(i, axis=1)  # np.exp(log_col1, dtype=types.large_float_type)  # TODO: use exp_normalize
+    pair_cols = np.empty(shape=(n, 2), dtype=types.large_float_type)
+    for i in range(d):
+
+        # col1 = mat.take(i, axis=1)  # np.exp(log_col1, dtype=types.large_float_type)  # TODO: use exp_normalize
         log_col1 = logmat.take(i, axis=1)
-        for j in range(i+1, n):
-            col2 = mat.take(j, axis=1)  # np.exp(log_col2, dtype=types.large_float_type)  # TODO: use exp_normalize
+        for j in range(i+1, d):
+            # col2 = mat.take(j, axis=1)  # np.exp(log_col2, dtype=types.large_float_type)  # TODO: use exp_normalize
             log_col2 = logmat.take(j, axis=1)
 
+            pair_cols[:] = np.column_stack((log_col1, log_col2))  # copy values
+            shift_value = pair_cols.max(axis=1)  # shift values before exp to avoid tiny numbers
+            # pair_cols -= shift_value[:, np.newaxis]
+
+            # TODO: do the following calculations in the kbl_similarity function
             with np.errstate(over='ignore'):
                 ratio1 = np.exp(log_col1-log_col2, dtype=types.large_float_type)
 
-            p = np.nansum(kbl_similarity(col1, col2, ratio1))
+            np.exp(pair_cols, out=pair_cols, dtype=types.large_float_type)
+            np.exp(shift_value, out=shift_value, dtype=types.large_float_type)
+
+            common.print_probvector(shift_value, file=sys.stderr)
+
+            p = np.nansum(kbl_similarity(pair_cols.take(0, axis=1), pair_cols.take(1, axis=1), ratio1, factor=shift_value))  # TODO: pass array instead
 
             if p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
