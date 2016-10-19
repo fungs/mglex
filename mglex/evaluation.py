@@ -221,28 +221,77 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
     return np.sqrt(mse/np.sum(weights)/4.0)
 
 
-def kbl_similarity(col1, col2, ratio1, factor):
-    with np.errstate(over='ignore', divide='ignore'):  # if any ratio is zero or infinity, ignore this
-        ratio2 = np.divide(1.0, ratio1, dtype=types.large_float_type)
-    common.print_probmatrix(np.vstack((np.log(col1), np.log(col2))), file=sys.stderr)
-    common.print_probmatrix(np.vstack((ratio1, ratio2)), file=sys.stderr)
-    sim = ratio1 + ratio2
-    assert np.all(~np.isnan(sim))
-    np.divide(2.0, sim, out=sim)
-    common.print_probvector(sim, file=sys.stderr)
+def kbl_similarity(log_col1, log_col2):
+    # copy columns
+    tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
+    log_col1 = tmp_pair[:, 0]  # first column view
+    log_col2 = tmp_pair[:, 1]  # second column view
+
+    log_shift = np.maximum(log_col1, log_col2)  # shift values before exp to avoid tiny numbers
+    tmp_pair -= log_shift[:, np.newaxis]
+    # assert np.all(log_col1 == log_pair[:, 0])
+
+    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
+    with np.errstate(over='ignore'):
+        ratio2 = np.exp(log_sim)
+
+    np.exp(tmp_pair, out=tmp_pair)
+    col1 = log_col1  # reference
+    col2 = log_col2  # reference
+
+    # assert np.all(log_col1 == log_pair[:, 0])
+    assert np.all(np.logical_and(col1 >= .0, col1 <= 1.0))
+    assert np.all(np.logical_and(col2 >= .0, col2 <= 1.0))
+
+    # reduce shift value by common factor
+    # print("before factoring out:", file=sys.stderr)
+    # common.print_probvector(log_shift, file=sys.stderr)
+    log_shift -= log_shift.max()
+    # print("after factoring out:", file=sys.stderr)
+    # common.print_probvector(log_shift, file=sys.stderr)
+
+    factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
+    print("number of non-zero entries in factor:", len(factor[factor > 0.0]), file=sys.stderr)
+
+    # print("columns:", file=sys.stderr)
+    # with np.errstate(divide="ignore"):
+    #     common.print_probmatrix(np.vstack((np.log(col1), np.log(col2))), file=sys.stderr)
+    # print("ratios:", file=sys.stderr)
+    # log_ratio2 = np.log(ratio2)  # debug
+    # common.print_probmatrix(np.vstack((log_ratio2, ratio2 + 1./ratio2)), file=sys.stderr)
+
+    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    with np.errstate(over='ignore', divide="ignore"):
+        tmp_sim = ratio2 + 1./ratio2
+    mask = np.isfinite(tmp_sim)
+    # mask = np.logical_and(np.isfinite(ratio2), np.isneginf(log_sim))
+    # common.print_probvector(ratio2, file=sys.stderr)
+    # common.print_probvector(tmp, file=sys.stderr)
+
+    log_sim[mask] = np.log(tmp_sim[mask])
+    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)
+    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    assert np.all(np.isfinite(log_sim))
+
+    print("log similarity vector:", file=sys.stderr)
+    common.print_probvector(log_sim, file=sys.stderr)
     with np.errstate(invalid='ignore'):
         numerator = col1 + col2*ratio2
-        print("number of non-zero entries:", len(numerator[numerator > 0.0]), file=sys.stderr)
-        mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
-        common.print_probmatrix(np.vstack((col1 + col2*ratio2, ratio2 + 1.)), file=sys.stderr)
+        divisor = ratio2 + 1.
+        # print("numerator and divisor:", file=sys.stderr)
+        # common.print_probmatrix(np.vstack((numerator, divisor)), file=sys.stderr)
+        # print("number of non-zero entries in numerator:", len(numerator[numerator > 0.0]), file=sys.stderr)
+        mix = np.divide(numerator, divisor)
 
-    common.print_probvector(mix, file=sys.stderr)
+    np.multiply(mix, factor, out=mix)
     mix_sum = np.nansum(mix)
+    print("mix sum:", mix_sum, file=sys.stderr)
     assert mix_sum
-    # np.divide(mix, factor)
     np.divide(mix, mix_sum, out=mix)
+    # common.print_probvector(mix, file=sys.stderr)
     with np.errstate(invalid='ignore', divide='ignore'):
-        log_sim = mix*np.log(sim)
+        log_sim *= mix
 
     # for x in zip(log_sim, np.log(mix1), sim, np.log(col1), np.log(col2), np.log(mix1), np.log(mix2), np.log(mix1_norm), np.log(mix2_norm)):
     #     sys.stderr.write("%.10f\t%.2f\t%.2f\tlike:[%.2f;%.2f]\tmix:[%.2f;%.2f]\tmix_norm:[%.2f;%.2f]\n" % x)
@@ -259,29 +308,17 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
     # wsum = np.sum(weights, dtype=types.large_float_type)
     # w2 = np.divide(weights, wsum).ravel()
 
-    pair_cols = np.empty(shape=(n, 2), dtype=types.large_float_type)
+    logmat_copy = logmat.copy()
+
     for i in range(d):
-
-        # col1 = mat.take(i, axis=1)  # np.exp(log_col1, dtype=types.large_float_type)  # TODO: use exp_normalize
-        log_col1 = logmat.take(i, axis=1)
         for j in range(i+1, d):
-            # col2 = mat.take(j, axis=1)  # np.exp(log_col2, dtype=types.large_float_type)  # TODO: use exp_normalize
-            log_col2 = logmat.take(j, axis=1)
+            log_col1 = logmat[:, i]  # column view on data
+            log_col2 = logmat[:, j]  # column view on data
 
-            pair_cols[:] = np.column_stack((log_col1, log_col2))  # copy values
-            shift_value = pair_cols.max(axis=1)  # shift values before exp to avoid tiny numbers
-            # pair_cols -= shift_value[:, np.newaxis]
+            print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
+            p = np.nansum(kbl_similarity(log_col1, log_col2))  # TODO: pass array instead
+            print("similarity value is:", p, file=sys.stderr)
 
-            # TODO: do the following calculations in the kbl_similarity function
-            with np.errstate(over='ignore'):
-                ratio1 = np.exp(log_col1-log_col2, dtype=types.large_float_type)
-
-            np.exp(pair_cols, out=pair_cols, dtype=types.large_float_type)
-            np.exp(shift_value, out=shift_value, dtype=types.large_float_type)
-
-            common.print_probvector(shift_value, file=sys.stderr)
-
-            p = np.nansum(kbl_similarity(pair_cols.take(0, axis=1), pair_cols.take(1, axis=1), ratio1, factor=shift_value))  # TODO: pass array instead
 
             if p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
@@ -289,6 +326,9 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
                     warnings.warn("Similarity larger than 1.0", UserWarning)
             else:
                 smat[i, j] = smat[j, i] = p
+
+    assert np.all(logmat == logmat_copy)
+
     return smat
 
 
