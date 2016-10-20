@@ -229,11 +229,7 @@ def kbl_similarity(log_col1, log_col2):
 
     log_shift = np.maximum(log_col1, log_col2)  # shift values before exp to avoid tiny numbers
     tmp_pair -= log_shift[:, np.newaxis]
-    # assert np.all(log_col1 == log_pair[:, 0])
-
-    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
-    with np.errstate(over='ignore'):
-        ratio2 = np.exp(log_sim)
+    log_ratio2 = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
 
     np.exp(tmp_pair, out=tmp_pair)
     col1 = log_col1  # reference
@@ -244,12 +240,7 @@ def kbl_similarity(log_col1, log_col2):
     assert np.all(np.logical_and(col2 >= .0, col2 <= 1.0))
 
     # reduce shift value by common factor
-    # print("before factoring out:", file=sys.stderr)
-    # common.print_probvector(log_shift, file=sys.stderr)
     log_shift -= log_shift.max()
-    # print("after factoring out:", file=sys.stderr)
-    # common.print_probvector(log_shift, file=sys.stderr)
-
     factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
     print("number of non-zero entries in factor:", len(factor[factor > 0.0]), file=sys.stderr)
 
@@ -260,29 +251,49 @@ def kbl_similarity(log_col1, log_col2):
     # log_ratio2 = np.log(ratio2)  # debug
     # common.print_probmatrix(np.vstack((log_ratio2, ratio2 + 1./ratio2)), file=sys.stderr)
 
-    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
-    with np.errstate(over='ignore', divide="ignore"):
-        tmp_sim = ratio2 + 1./ratio2
-    mask = np.isfinite(tmp_sim)
+    with np.errstate(over='ignore'):
+        ratio1 = np.exp(-log_ratio2)
+        ratio2 = np.exp(log_ratio2)
+
+    # workaround inf values
+    log_sim = log_ratio2  # TODO: reuse space
+    mask1 = np.isinf(ratio1)
+    log_sim[mask1] = -log_ratio2[mask1]
+    mask2 = np.isinf(ratio2)
+
+    print("number of inf entries in ratio1:", sum(mask1), file=sys.stderr)
+    print("number of inf entries in ratio2:", sum(mask2), file=sys.stderr)
+
+    mask = np.logical_or(mask1, mask2, out=mask1)
+    mask = np.negative(mask, out=mask)
+    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])
+
+    # print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    # with np.errstate(over='ignore', divide="ignore"):
+    #     tmp_sim = ratio2 + 1./ratio2
+    # mask = np.isfinite(log_sim)
     # mask = np.logical_and(np.isfinite(ratio2), np.isneginf(log_sim))
     # common.print_probvector(ratio2, file=sys.stderr)
     # common.print_probvector(tmp, file=sys.stderr)
 
-    log_sim[mask] = np.log(tmp_sim[mask])
-    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    # log_sim[mask] = np.log(tmp_sim[mask])
+    # print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
     log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)
-    print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
+    # print("number of non-inf entries in log_sim:", len(log_sim[np.isfinite(log_sim)]), file=sys.stderr)
     assert np.all(np.isfinite(log_sim))
 
     print("log similarity vector:", file=sys.stderr)
     common.print_probvector(log_sim, file=sys.stderr)
+
     with np.errstate(invalid='ignore'):
         numerator = col1 + col2*ratio2
         divisor = ratio2 + 1.
-        # print("numerator and divisor:", file=sys.stderr)
-        # common.print_probmatrix(np.vstack((numerator, divisor)), file=sys.stderr)
-        # print("number of non-zero entries in numerator:", len(numerator[numerator > 0.0]), file=sys.stderr)
+        print("numerator and divisor:", file=sys.stderr)
+        common.print_probmatrix(np.vstack((numerator, divisor)), file=sys.stderr)
+        print("number of non-zero entries in numerator:", len(numerator[numerator > 0.0]), file=sys.stderr)
         mix = np.divide(numerator, divisor)
+
+    # assert np.all(np.isfinite(mix))
 
     np.multiply(mix, factor, out=mix)
     mix_sum = np.nansum(mix)
