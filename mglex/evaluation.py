@@ -7,6 +7,7 @@ __author__ = "johannes.droege@uni-duesseldorf.de"
 from . import common, types
 import itertools
 import numpy as np
+import warnings
 import sys
 
 
@@ -217,7 +218,84 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
 
     assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
     mse = np.sum(np.sum((lmat - pmat)**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
-    return np.sqrt(mse/np.sum(weights)/2.0)
+    return np.sqrt(mse/np.sum(weights)/4.0)
+
+
+def kbl_similarity(log_col1, log_col2):
+    tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
+    log_shift = tmp_pair.max(axis=1, keepdims=False)  # shift values before exp to avoid tiny numbers
+    tmp_pair -= log_shift[:, np.newaxis]
+
+    # reduce shift value by common factor and compress data factors are sparse
+    log_shift -= log_shift.max()
+    factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
+
+    mask = np.array(factor, dtype=bool)
+    number_nonzero = mask.sum()
+    if 2*number_nonzero > factor.size:  # hard-coded threshold
+        tmp_pair[:number_nonzero] = tmp_pair[mask]
+        tmp_pair.resize((number_nonzero, 2))
+        factor = factor[mask]
+
+    log_col1 = tmp_pair[:, 0]  # first column view
+    log_col2 = tmp_pair[:, 1]  # second column view
+    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
+
+    np.exp(tmp_pair, out=tmp_pair)
+    col1 = log_col1  # reference
+    col2 = log_col2  # reference
+
+    with np.errstate(over='ignore'):
+        ratio1 = np.exp(-log_sim)
+        ratio2 = np.exp(log_sim)
+
+    # workaround inf values
+    mask = np.isinf(ratio1)
+    # print("number of inf entries in ratio1:", sum(mask), file=sys.stderr)
+    if np.any(mask):
+        log_sim[mask] = -log_sim[mask]
+    mask = np.negative(mask, out=mask)
+    mask = np.logical_and(mask, np.isfinite(ratio2), out=mask)
+
+    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])
+    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)
+    assert np.all(np.isfinite(log_sim))
+
+    with np.errstate(invalid='ignore'):
+        mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
+
+    np.multiply(mix, factor, out=mix)
+    mix_sum = np.nansum(mix)
+    # print("mix sum:", mix_sum, file=sys.stderr)
+    assert mix_sum
+    np.divide(mix, mix_sum, out=mix)
+    with np.errstate(invalid='ignore'):
+        log_sim *= mix
+    return log_sim
+
+
+def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
+    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
+
+    n, d = logmat.shape
+    smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
+    # lsums = np.sum(mat, axis=0)
+    # wsum = np.sum(weights, dtype=types.large_float_type)
+    # w2 = np.divide(weights, wsum).ravel()
+
+    for i in range(d):
+        for j in range(i+1, d):
+            # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
+            log_p = np.nansum(kbl_similarity(logmat[:, i], logmat[:, j]))  # TODO: pass array instead
+            # print("similarity value is:", p, file=sys.stderr)
+
+            if log_p >= .0:
+                smat[i, j] = smat[j, i] = 0.0
+                if log_p > .0:
+                    warnings.warn("Similarity larger than 1.0", UserWarning)
+            else:
+                smat[i, j] = smat[j, i] = log_p
+    return smat
 
 
 if __name__ == "__main__":

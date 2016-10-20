@@ -15,6 +15,7 @@ Here are the commands to run:
    buildmatrix       Construct a responsibility matrix for grouped data
    evaluate          Evaluate classifications using a reference (true) responsibility matrix
    significance      Give a null model log-likelihood distribution and calculate p-values for unseen data
+   bincompare        Compare bins by likelihood values
 
 See 'mglex <command> --help' for more information on a specific command.
 """

@@ -35,8 +35,8 @@ Usage:
   -l <file>, --likelihood <file>                Likelihood matrix; default standard input
   -r <file>, --responsibility <file>            Responsibility (weight) matrix file
   -w <file>, --weight <file>                    Weights (sequence length) file
-  -m <method>, --method <method>                Evaluation method; one of "separation", "co-clustering"
-  -s <int>, --subsample <int>                   Subsample this number of data points for speedup (only co-clustering)
+  -m <method>, --method <method>                Evaluation method; one of "mse", "co-clustering", "separation"
+  -s <int>, --subsample <int>                   Subsample this number of data points for faster calculation
   -z <int>, --random-seed <int>                 Seed for random operations
   -b <from(:to:step)>, --beta <from(:to:step)>  Beta correction factor(s) to evaluate; default 1.0
 """
