@@ -277,34 +277,24 @@ def kbl_similarity(log_col1, log_col2):
 def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
 
-    # mat = np.exp(logmat, dtype=types.large_float_type)
     n, d = logmat.shape
     smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
     # lsums = np.sum(mat, axis=0)
     # wsum = np.sum(weights, dtype=types.large_float_type)
     # w2 = np.divide(weights, wsum).ravel()
 
-    logmat_copy = logmat.copy()
-
     for i in range(d):
         for j in range(i+1, d):
-            log_col1 = logmat[:, i]  # column view on data
-            log_col2 = logmat[:, j]  # column view on data
+            # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
+            log_p = np.nansum(kbl_similarity(logmat[:, i], logmat[:, j]))  # TODO: pass array instead
+            # print("similarity value is:", p, file=sys.stderr)
 
-            print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            p = np.nansum(kbl_similarity(log_col1, log_col2))  # TODO: pass array instead
-            print("similarity value is:", p, file=sys.stderr)
-
-
-            if p >= .0:
+            if log_p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
-                if p > .0:
+                if log_p > .0:
                     warnings.warn("Similarity larger than 1.0", UserWarning)
             else:
-                smat[i, j] = smat[j, i] = p
-
-    assert np.all(logmat == logmat_copy)
-
+                smat[i, j] = smat[j, i] = log_p
     return smat
 
 
