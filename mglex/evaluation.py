@@ -229,15 +229,12 @@ def kbl_similarity(log_col1, log_col2):
     # reduce shift value by common factor and compress data factors are sparse
     log_shift -= log_shift.max()
     factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
-    print("number of zero entries in factor:", len(factor[factor == 0.0]), file=sys.stderr)
 
     mask = np.array(factor, dtype=bool)
     number_nonzero = mask.sum()
-    if number_nonzero < 0.5*factor.size:  # hard-coded threshold
-        print("dimension before compression:", tmp_pair.shape, file=sys.stderr)
+    if 2*number_nonzero > factor.size:  # hard-coded threshold
         tmp_pair[:number_nonzero] = tmp_pair[mask]
         tmp_pair.resize((number_nonzero, 2))
-        print("dimension after compression:", tmp_pair.shape, file=sys.stderr)
         factor = factor[mask]
 
     log_col1 = tmp_pair[:, 0]  # first column view
@@ -248,17 +245,13 @@ def kbl_similarity(log_col1, log_col2):
     col1 = log_col1  # reference
     col2 = log_col2  # reference
 
-    # assert np.all(log_col1 == log_pair[:, 0])
-    # assert np.all(np.logical_and(col1 >= .0, col1 <= 1.0))
-    # assert np.all(np.logical_and(col2 >= .0, col2 <= 1.0))
-
     with np.errstate(over='ignore'):
         ratio1 = np.exp(-log_sim)
         ratio2 = np.exp(log_sim)
 
     # workaround inf values
     mask = np.isinf(ratio1)
-    print("number of inf entries in ratio1:", sum(mask), file=sys.stderr)
+    # print("number of inf entries in ratio1:", sum(mask), file=sys.stderr)
     if np.any(mask):
         log_sim[mask] = -log_sim[mask]
     mask = np.negative(mask, out=mask)
@@ -271,13 +264,9 @@ def kbl_similarity(log_col1, log_col2):
     with np.errstate(invalid='ignore'):
         mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
 
-    # m = ~np.isfinite(mix)
-    # print("number of invalid values in mix:", len(m), file=sys.stderr)
-    # common.print_probmatrix(np.vstack((col1[m], col2[m], ratio2[m], numerator[m], divisor[m], mix[m])), file=sys.stderr)
-
     np.multiply(mix, factor, out=mix)
     mix_sum = np.nansum(mix)
-    print("mix sum:", mix_sum, file=sys.stderr)
+    # print("mix sum:", mix_sum, file=sys.stderr)
     assert mix_sum
     np.divide(mix, mix_sum, out=mix)
     with np.errstate(invalid='ignore'):
