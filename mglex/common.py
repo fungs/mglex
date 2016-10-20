@@ -403,7 +403,7 @@ load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
 load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
 
 def write_probmatrix_iter(rows, file=stdout):
-    trans = lambda row: -np.asarray(row, dtype=types.logprob_type)
+    trans = lambda row: np.abs(np.asarray(row, dtype=types.logprob_type))  # assuming log-negative values
     for row in map(np.asarray, rows):
         file.write("\t".join(["%.2f" % i for i in trans(row)]))
         file.write("\n")
