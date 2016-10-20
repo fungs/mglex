@@ -258,7 +258,8 @@ def kbl_similarity(log_col1, log_col2):
     # workaround inf values
     log_sim = log_ratio2  # TODO: reuse space
     mask1 = np.isinf(ratio1)
-    log_sim[mask1] = -log_ratio2[mask1]
+    if np.any(mask1):
+        log_sim[mask1] = -log_ratio2[mask1]
     mask2 = np.isinf(ratio2)
 
     print("number of inf entries in ratio1:", sum(mask1), file=sys.stderr)
