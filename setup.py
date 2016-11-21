@@ -7,7 +7,7 @@ setup(
     description='mglex - MetaGenome Likelihood Extractor',
     url='http://github.com/fungs/mglex',
     author='Johannes Dröge',
-    author_email='johannes.droege@uni-duesseldorf.de',
+    author_email='code@fungs.de',
     license='GNU General Public License, version 3 (GPL-3.0)',
     packages=find_packages(),
     exclude_package_data = {'': ['.gitignore']},

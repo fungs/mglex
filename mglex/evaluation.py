@@ -1,8 +1,10 @@
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
+
 u"""
 Submodule with all evaluation-related code.
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 
 from . import common, types
 import itertools

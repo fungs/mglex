@@ -1,8 +1,10 @@
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
+
 u"""
 This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 
 from .. import common, types
 import numpy as np
