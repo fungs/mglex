@@ -1,1 +1,1 @@
-exclude .gitignore
+include README.rst
