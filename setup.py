@@ -25,7 +25,7 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=["numpy >= 1.8.2", "scipy >= 0.13.3", "docopt >= 0.6.2"],
     classifiers=[
-        "Development Status :: 3 - Beta",
+        "Development Status :: 4 - Beta",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python",
