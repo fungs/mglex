@@ -24,6 +24,6 @@ Features
 Credits
 ---------
 
-This package was created using NumPy by Johannes Dröge (code@fungs.de) at the
-Helmholtz Centre for Infection Research.
-
+This package was created using NumPy by Johannes Dröge at the Computational
+Biology of Infection Research Group at the Helmholtz Centre for Infection
+Research, Braunschweig, Germany.
