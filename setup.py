@@ -23,7 +23,7 @@ setup(
     scripts=['mglex-cli'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
-    install_requires=["numpy >= 1.9.2", "scipy >= 0.16.0", "docopt >= 0.6.2"],
+    install_requires=["numpy >= 1.8.2", "scipy >= 0.13.3", "docopt >= 0.6.2"],
     classifiers=[
         "Development Status :: 3 - Beta",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
