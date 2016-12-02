@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
 
 u"""
 This is the main program which takes a (negatively log-scaled) responsibility (or weight) matrix and corresponding
@@ -38,7 +39,7 @@ except SystemError:  # when run independenly, needs mglex package in path
         sys.path.append(str(Path(__file__).resolve().parents[2]))
         from mglex import *
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 from mglex import __version__
 
 

@@ -1,3 +1,5 @@
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
+
 u"""
  The types and methods for describing the distribution of label-type data. We use a modified Naive Bayesian Model
  which  considers hierarchical labels using a weighting scheme. However, the weighting of the individual labels
@@ -5,7 +7,7 @@ u"""
  consideration phylogenetic distances.
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 
 from .. import common, types
 import numpy as np

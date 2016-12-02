@@ -1,8 +1,10 @@
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
+
 u"""
 This file contains helper functions and types.
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 
 from . import types
 import numpy as np

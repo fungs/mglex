@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
 
 u"""
 This is the mglex command line interface which executes the sub-commands.
@@ -17,14 +18,14 @@ Here are the commands to run:
    significance      Give a null model log-likelihood distribution and calculate p-values for unseen data
    bincompare        Compare bins by likelihood values
 
-See 'mglex <command> --help' for more information on a specific command.
+See 'mglex-cli <command> --help' for more information on a specific command.
 """
 
 import sys
 import importlib
 import mglex.cli
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 from mglex import __version__
 
 if __name__ == "__main__":

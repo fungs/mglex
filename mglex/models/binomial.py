@@ -1,9 +1,11 @@
+# This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
+
 u"""
  This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
  We use a Binomial density to model the coverage per position which also handles low count values.
 """
 
-__author__ = "johannes.droege@uni-duesseldorf.de"
+__author__ = "code@fungs.de"
 
 from .. import common, types
 import numpy as np
