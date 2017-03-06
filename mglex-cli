@@ -18,7 +18,7 @@ Here are the commands to run:
    significance      Give a null model log-likelihood distribution and calculate p-values for unseen data
    bincompare        Compare bins by likelihood values
 
-See 'mglex <command> --help' for more information on a specific command.
+See 'mglex-cli <command> --help' for more information on a specific command.
 """
 
 import sys
