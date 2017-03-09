@@ -10,6 +10,7 @@ their programs.
 
 * Free software: GPLv3 license
 * Source code: https://github.com/fungs/mglex
+* Documentation: https://mglex.readthedocs.io
 
 Features
 --------
