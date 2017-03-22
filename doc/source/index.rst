@@ -12,6 +12,7 @@ Contents
 
    install
    quickstart
+   data
    help
 
 
