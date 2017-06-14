@@ -5,6 +5,7 @@ __pycache__/
 
 # transient backup
 *.bak
+*~
 
 # setuptools
 build/
