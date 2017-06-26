@@ -1,17 +1,19 @@
 # This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
 
 u"""
- This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
- We use a Poisson PMF to model the absolute coverage per position which also handles low count values.
+ This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
+ We use a Multinomial PMF to model the relative coverage per position which also handles low count values.
 """
 
 __author__ = "code@fungs.de"
 
 from .. import common, types
 import numpy as np
-from sys import stderr
+from sys import argv, exit, stdin, stdout, stderr, exit
 
-mean_coverage_type = np.float32  # move to context object
+# count data type
+frequency_type = np.int32
+logtype = np.float64  # TODO: adjust according to maximum values
 
 
 class Context(object):
@@ -22,14 +24,15 @@ class Context(object):
 
 
 class Data(object):
-    def __init__(self, context=Context()):  # TODO: use deque() for large append-only lists
+    def __init__(self, context=Context()):
         self.context = context
+        self._covmeans = []  # TODO: use deque() for large append-only lists
         self.covmeans = None
+        self.covmeanstotal = None
         self.conterm = None
-        self._covmeans = []
 
     def deposit(self, features):  # TODO: improve data parsing and handling
-        coverage = np.array(features, dtype=mean_coverage_type)
+        coverage = np.array(features, dtype=self.mean_coverage_type)
         self._covmeans.append(coverage)
 
     def parse(self, inseq):  # TODO: add load_data from generic with data-specific parse_line function
@@ -39,8 +42,10 @@ class Data(object):
 
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
-        self.conterm = common.gammaln(self.covmeans+1).sum(axis=1, keepdims=True)
-        # assert(np.all(self.covmeans.sum(axis=1) > 0))  # relaxed check
+        self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
+        self.conterm = np.asarray(common.logmultinom(self.covmeanstotal, self.covmeans), dtype=types.logprob_type)
+
+        # assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
 
         if self.context.num_features is None:
             self.context.num_features = self.num_features
@@ -60,47 +65,43 @@ class Data(object):
     def __len__(self):
         return self.num_data  # TODO: select an intuitive convention for this
 
+    mean_coverage_type = np.float32
+
 
 class Model(object):
-    def __init__(self, params, context=Context(), initialize=True, pseudocount=False):
+    def __init__(self, params, context=Context(), initialize=True):
+        #print(params.shape, file=stderr)
         self.context = context
-
-        if pseudocount:  # TODO: needs investigation, do not activate
-            self.params = np.array(params + 1).T
-            self._pseudocount = True
-        else:
-            self.params = np.array(params).T
-            self._pseudocount = False
-
+        self.params = np.array(params).T  # TODO: why pass transposed?
         self.stdev = None
         self._params_sum = None
         self._params_log = None
+
+        if context.num_features is None:
+            context.num_features = self.num_features
+        else:
+            assert context.num_features == self.num_features
 
         if initialize:
             self.update()
 
     def update(self):
-        # if not np.all(self.params):
-            # print >>stderr, "some cluster in some sample wasn't observed:", self.params
         with np.errstate(divide='ignore'):
-            self._params_sum = self.params.sum(axis=0, keepdims=True)
-            self._params_log = np.log(self.params)
+            self._params_log = np.asarray(np.log(self.params), dtype=types.logprob_type)
         return False  # indicates whether a dimension change occurred
 
     def update_context(self):  # TODO: implement proper context support
         pass
 
     def log_likelihood(self, data):
-        # term1 = np.dot(data.covsums, self._params_log)  # sum of data coverage version
-        term1 = np.dot(data.covmeans, self._params_log)  # mean coverage version
-        # print("term1 shape is %ix%i" % term1.shape)
-        # term2 = np.dot(data.sizes, self._params_sum)  # sum of data coverage version
-        term2 = self._params_sum  # mean coverage version
-        # print("term2 shape is %ix%i" % term2.shape)
-        # loglike = term1 - term2
-        # loglike = loglike - data.conterm  # optional if only scaled likelihood is needed
-        loglike = np.asarray(term1 - term2 - data.conterm, dtype=types.logprob_type)/self.num_features
-        # print >>stderr, loglike
+        assert data.num_features == self.num_features
+
+        term1 = common.nandot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
+        assert np.all(~np.isnan(term1))
+        loglike = np.asarray(term1 + data.conterm, dtype=types.logprob_type)/self.num_features
+        # common.write_probmatrix(loglike, file=logfile)
+
+        assert np.all(loglike <= .0)
         return loglike
 
     def get_labels(self, indices=None):
@@ -117,9 +118,11 @@ class Model(object):
         weights_combined = responsibilities * weights
 
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
-        weights_normalization = weights_combined.sum(axis=0, keepdims=True)
+        weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights_combined)  # TODO: use np.average? simplify?
 
-        self.params = weighted_meancoverage_samples / weights_normalization
+        pseudocount = 0.0000000001  # TODO: refine
+        self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
+                                 dtype=types.prob_type)  # introduced pseudocounts
 
         dimchange = self.update()  # create cache for likelihood calculations
 
@@ -146,24 +149,21 @@ class Model(object):
     def names(self):
         return list(self.get_labels())
 
-    # @property
-    # def features_used(self):
-        # return sum(self._fmask)
-
-    _short_name = "PO_model"
+    _short_name = "MI_model"
 
 
 def empty_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    params = np.zeros(shape=(cluster_number, context.num_features), dtype=mean_coverage_type)
+    params = np.zeros(shape=(cluster_number, context.num_features), dtype=types.prob_type)
     return Model(params, **kwargs)
 
 
-def random_model(cluster_number, context, low=0, high=None, **kwargs):
+def random_model(cluster_number, context, **kwargs):
     assert cluster_number > 0
     assert type(context) == Context
-    params = np.random.randint(low, high, (cluster_number, context.num_features))
+    params = np.random.rand(cluster_number, context.num_features)
+    params /= params.sum(axis=1, keepdims=True)
     return Model(params, **kwargs)
 
 
