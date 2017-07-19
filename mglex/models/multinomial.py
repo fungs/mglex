@@ -13,7 +13,6 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 
 # count data type
 frequency_type = np.int32
-logtype = np.float64  # TODO: adjust according to maximum values
 
 
 class Context(object):
@@ -43,9 +42,12 @@ class Data(object):
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = np.asarray(common.logmultinom(self.covmeanstotal, self.covmeans), dtype=types.logprob_type)
-
-        # assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
+        self.conterm = np.asarray(common.logmultinom(self.covmeanstotal, self.covmeans)/self.num_features, dtype=self.mean_coverage_type)  # shrink to prevent type overflow
+        self.covmeans /= self.num_features  # scale numbers, avoid division during likelihood calculation
+        self.covmeanstotal /= self.num_features  # scale numbers, avoid division during likelihood calculation
+        
+        assert np.all(np.isfinite(self.conterm))  # variable overflow in multinomial coefficient
+        # assert(np.all(self.covmeanstotal > 0))  # TODO: zero observations are valid
 
         if self.context.num_features is None:
             self.context.num_features = self.num_features
@@ -98,10 +100,15 @@ class Model(object):
 
         term1 = common.nandot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
-        loglike = np.asarray(term1 + data.conterm, dtype=types.logprob_type)/self.num_features
-        # common.write_probmatrix(loglike, file=logfile)
+        
+        loglike = np.asarray(term1 + data.conterm, dtype=types.logprob_type)
 
-        assert np.all(loglike <= .0)
+        loglike_is_negative = np.all(loglike <= .0)
+        if not loglike_is_negative:
+            mask = np.where(loglike > .0)
+            for row, col, val in zip(mask[0], mask[1], loglike[mask]):
+                stderr.write("LOG %s: positive loglikelihood violation row %i, col %i, val %.2f\n" % (self._short_name, row, col, val))
+        assert loglike_is_negative  # non-negative log-likelihood is most likely due to variable precision error
         return loglike
 
     def get_labels(self, indices=None):
@@ -119,6 +126,8 @@ class Model(object):
 
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights_combined)  # TODO: use np.average? simplify?
+        #weighted_meancoverage_total[weighted_meancoverage_total==.0] = np.nan  # no data -> undefined params
+        assert np.all(weighted_meancoverage_total > 0.)  # zero coverage bins over given samples not allowed!
 
         pseudocount = 0.0000000001  # TODO: refine
         self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
