@@ -45,7 +45,7 @@ def main(argv):
         likelihood = common.load_probmatrix(sys.stdin)
 
     if argument["--beta"]:
-        likelihood *= types.logprob_type(argument["--beta"])
+        likelihood *= float(argument["--beta"])
 
     weights = common.load_seqlens_file(argument["--weight"])
     distmat = evaluation.similarity_matrix(likelihood, weights)
