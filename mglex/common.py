@@ -77,6 +77,10 @@ def logbinom(n, k):
     return gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
+def logmultinom(n, k):
+    return gammaln(n+1) - np.sum(gammaln(k+1), axis=1, keepdims=True)
+
+
 def nandot(a, b):  # TODO: speed up, avoid copying data
     "A numpy.dot() replacement which treats (0*-Inf)==0 and works around BLAS NaN bugs in matrices."
     # important note: a contains zeros and b contains inf/-inf/nan, not the other way around

@@ -2,7 +2,7 @@
 
 u"""
  This file holds all the functions and types necessary for probabilistic modelling of differential (read) coverage.
- We use a Binomial density to model the coverage per position which also handles low count values.
+ We use a Multinomial PMF to model the relative coverage per position which also handles low count values.
 """
 
 __author__ = "code@fungs.de"
@@ -13,7 +13,6 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 
 # count data type
 frequency_type = np.int32
-logtype = np.float64  # TODO: adjust according to maximum values
 
 
 class Context(object):
@@ -43,9 +42,12 @@ class Data(object):
     def prepare(self):
         self.covmeans = np.vstack(self._covmeans)
         self.covmeanstotal = self.covmeans.sum(axis=1, keepdims=True)
-        self.conterm = np.asarray(common.logbinom(self.covmeanstotal, self.covmeans).sum(axis=1, keepdims=True), dtype=types.logprob_type)
-
-        # assert(np.all(self.covmeanstotal > 0))  # TODO: what about zero observation in all samples
+        self.conterm = np.asarray(common.logmultinom(self.covmeanstotal, self.covmeans)/self.num_features, dtype=self.mean_coverage_type)  # shrink to prevent type overflow
+        self.covmeans /= self.num_features  # scale numbers, avoid division during likelihood calculation
+        self.covmeanstotal /= self.num_features  # scale numbers, avoid division during likelihood calculation
+        
+        assert np.all(np.isfinite(self.conterm))  # variable overflow in multinomial coefficient
+        # assert(np.all(self.covmeanstotal > 0))  # TODO: zero observations are valid
 
         if self.context.num_features is None:
             self.context.num_features = self.num_features
@@ -74,9 +76,7 @@ class Model(object):
         self.context = context
         self.params = np.array(params).T  # TODO: why pass transposed?
         self.stdev = None
-        self._params_sum = None
         self._params_log = None
-        self._params_complement_log = None
 
         if context.num_features is None:
             context.num_features = self.num_features
@@ -89,24 +89,25 @@ class Model(object):
     def update(self):
         with np.errstate(divide='ignore'):
             self._params_log = np.asarray(np.log(self.params), dtype=types.logprob_type)
-            self._params_complement_log = np.asarray(np.log(1. - self.params), dtype=types.logprob_type)
         return False  # indicates whether a dimension change occurred
 
     def update_context(self):  # TODO: implement proper context support
         pass
 
-    def log_likelihood(self, data):  # TODO: check and adjust formula
+    def log_likelihood(self, data):
         assert data.num_features == self.num_features
 
         term1 = common.nandot(data.covmeans, self._params_log)  # TODO: scipy special.xlogy(k, p)?
         assert np.all(~np.isnan(term1))
-        term2 = common.nandot(data.covmeanstotal - data.covmeans, self._params_complement_log)  # TODO: scipy  special.xlog1py(n-k, -p)?
-        assert np.all(~np.isnan(term2))
-        loglike = np.asarray(term1 + term2 + data.conterm, dtype=types.logprob_type)/self.num_features
+        
+        loglike = np.asarray(term1 + data.conterm, dtype=types.logprob_type)
 
-        # common.write_probmatrix(loglike, file=logfile)
-
-        assert np.all(loglike <= .0)
+        loglike_is_negative = np.all(loglike <= .0)
+        if not loglike_is_negative:
+            mask = np.where(loglike > .0)
+            for row, col, val in zip(mask[0], mask[1], loglike[mask]):
+                stderr.write("LOG %s: positive loglikelihood violation row %i, col %i, val %.2f\n" % (self._short_name, row, col, val))
+        assert loglike_is_negative  # non-negative log-likelihood is most likely due to variable precision error
         return loglike
 
     def get_labels(self, indices=None):
@@ -124,6 +125,8 @@ class Model(object):
 
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights_combined)  # TODO: use np.average? simplify?
+        #weighted_meancoverage_total[weighted_meancoverage_total==.0] = np.nan  # no data -> undefined params
+        assert np.all(weighted_meancoverage_total > 0.)  # zero coverage bins over given samples not allowed!
 
         pseudocount = 0.0000000001  # TODO: refine
         self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
@@ -154,7 +157,7 @@ class Model(object):
     def names(self):
         return list(self.get_labels())
 
-    _short_name = "BI_model"
+    _short_name = "MI_model"
 
 
 def empty_model(cluster_number, context, **kwargs):

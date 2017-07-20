@@ -17,7 +17,7 @@ Usage:
   -o <file>, --outmodel <file>          Output classificaton model file
   -w <file>, --weight <file>            Weights (sequence length) file
   -a <file>, --abcoverage <file>        Absolute mean coverage data file for Poisson Model
-  -d <file>, --diffcoverage <file>      Differential mean coverage data file for Binomial Model
+  -d <file>, --diffcoverage <file>      Differential mean coverage data file for Multinomial Model
   -c <file>, --composition <file>       Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>            Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
   -l <file>, --logfile <file>           File for logging
@@ -63,7 +63,7 @@ def main(argv):
 
     for arg, submodule, data_opts in (
                 ("--abcoverage", models.poisson, {}),
-                ("--diffcoverage", models.binomial, {}),
+                ("--diffcoverage", models.multinomial, {}),
                 ("--composition", models.naive_bayes, {}),
                 ("--labels", models.hierarchic_naive_bayes, {})):
 
