@@ -36,7 +36,8 @@ Usage:
   -l <file>, --likelihood <file>                Likelihood matrix; default standard input
   -r <file>, --responsibility <file>            Responsibility (weight) matrix file
   -w <file>, --weight <file>                    Weights (sequence length) file
-  -m <method>, --method <method>                Evaluation method; one of "mse", "co-clustering", "separation"
+  -m <method>, --method <method>                Evaluation method; one of "mse", "mse-flex",
+                                                "co-clustering", "separation"
   -s <int>, --subsample <int>                   Subsample this number of data points for faster calculation
   -z <int>, --random-seed <int>                 Seed for random operations
   -b <from(:to:step)>, --beta <from(:to:step)>  Beta correction factor(s) to evaluate; default 1.0
@@ -61,7 +62,8 @@ from mglex import __version__
 
 methods = {"separation": evaluation.twoclass_separation,
            "co-clustering": evaluation.expected_pairwise_clustering,
-           "mse": evaluation.mean_squarred_error
+           "mse": evaluation.mean_squared_error,
+           "mse-flex": evaluation.mean_squared_error_flex
           }
 
 

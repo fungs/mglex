@@ -210,16 +210,41 @@ def twoclass_separation_onecolumn(like, weights_null, weights_alt):
     return error
 
 
-def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: implement weights==None?
+def mean_squared_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: implement unweighted (weights==None)
     """Square-rooted mean squared error as a fast evaluation score"""
+    
+    assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
 
     if logarithmic:
         lmat = np.exp(lmat)
         pmat = np.exp(pmat)
 
-    assert lmat.shape == pmat.shape, "Shape mismatch in prediction and truth matrix."
     mse = np.sum(np.sum((lmat - pmat)**2, axis=1, keepdims=True)*weights, dtype=types.large_float_type)
     return np.sqrt(mse/np.sum(weights)/4.0)
+
+
+def mean_squared_error_flex(lmat, pmat, weights=None, logarithmic=True):  # TODO: implement unweighted (weights==None)
+    """Square-rooted mean squared error as a fast evaluation score which allows for different groupings"""
+    
+    assert lmat.shape[0] == pmat.shape[0], "Shape mismatch in prediction and truth matrix."
+
+    if logarithmic:
+        lmat = np.exp(lmat)
+        pmat = np.exp(pmat)
+
+    mse = types.large_float_type(0)
+    num_groups = 0
+    for pcol in pmat.T:
+        mask = np.array(pcol, dtype=np.bool_)  # assuming that grouping is very sparse over sequences
+        mask_size = np.sum(mask)
+        if not mask_size:
+            continue
+        w = np.squeeze(weights, axis=1)[mask]
+        w_rel = w/np.sum(w)  # sequences are weighted (by their respective length)
+        mse += np.min(np.sum(w_rel*(lmat[mask].T-pcol[mask])**2, axis=1, dtype=types.large_float_type))
+        num_groups += 1
+    
+    return mse/num_groups  # groups are weighted equally
 
 
 def kbl_similarity(log_col1, log_col2):
@@ -231,7 +256,7 @@ def kbl_similarity(log_col1, log_col2):
     log_shift -= log_shift.max()
     factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
 
-    mask = np.array(factor, dtype=bool)
+    mask = np.array(factor, dtype=np.bool_)
     number_nonzero = mask.sum()
     if 2*number_nonzero > factor.size:  # hard-coded threshold
         tmp_pair[:number_nonzero] = tmp_pair[mask]
