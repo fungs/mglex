@@ -76,7 +76,6 @@ class Model(object):
         self.context = context
         self.params = np.array(params).T  # TODO: why pass transposed?
         self.stdev = None
-        self._params_sum = None
         self._params_log = None
 
         if context.num_features is None:
