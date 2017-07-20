@@ -102,7 +102,7 @@ def main(argv):
     # weights = 100.0*np.asarray(weights/weights.max(), dtype=types.prob_type)  # TODO: refactor
 
     n = likelihood.shape[0]
-    if subsample and subsample < n:  # random subsampling, if requested
+    if subsample and subsample < n:  # subsample input sequences, if requested
         try:
             common.set_random_seed(int(argument["--random-seed"]))
         except TypeError:

@@ -113,8 +113,7 @@ def expected_pairwise_clustering(lmat, pmat, weights=None, logarithmic=True, blo
     if not blocksize:
         blocksize = n
 
-    # compress if requested
-    if compress:
+    if compress: # remove all sequences with zero prob
         mask = lmat.sum(dtype=np.bool_, axis=1)
         if not np.all(mask):
             lmat = lmat.compress(mask, axis=0)
