@@ -223,53 +223,82 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
 
 
 def kbl_similarity(log_col1, log_col2):
+    "A probabilistic distance based on pairwise mixture likelihoods"
+
     tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
-    log_shift = tmp_pair.max(axis=1, keepdims=False)  # shift values before exp to avoid tiny numbers
-    tmp_pair -= log_shift[:, np.newaxis]
+    #common.write_probmatrix(tmp_pair, file=sys.stderr)
+    assert not np.any(np.isnan(tmp_pair))
 
-    # reduce shift value by common factor and compress data factors are sparse
-    log_shift -= log_shift.max()
+    # shift values before exp to avoid tiny numbers
+    log_shift = tmp_pair.max(axis=1, keepdims=False)
+    with np.errstate(invalid='ignore'):
+        tmp_pair -= log_shift[:, np.newaxis]  # we add this factor again, later
+        
+    # reduce shift value by common factor and keep factors
+    log_shift -= np.max(log_shift)  # constant factors can be removed in the weights
     factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
+    #common.print_probvector(factor, file=sys.stderr)
 
-    mask = np.array(factor, dtype=bool)
-    number_nonzero = mask.sum()
-    if 2*number_nonzero > factor.size:  # hard-coded threshold
-        tmp_pair[:number_nonzero] = tmp_pair[mask]
+    # compress data with factor of zero
+    mask_nonzero_factor = np.array(factor, dtype=np.bool_)
+    number_nonzero = np.sum(mask_nonzero_factor)
+    if False: #2*number_nonzero > factor.size:  # hardcoded, compress arrays if more than half of entries are zeroes
+        sys.stderr.write("Removing zero entries in data.\n")
+        tmp_pair[:number_nonzero] = tmp_pair[mask_nonzero_factor]
         tmp_pair.resize((number_nonzero, 2))
-        factor = factor[mask]
+        factor = factor[mask_nonzero_factor]
 
+    # calculate likelihood ratios for all data points
     log_col1 = tmp_pair[:, 0]  # first column view
     log_col2 = tmp_pair[:, 1]  # second column view
-    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
+    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)  # = log(p2/p1)
+    #assert not np.any(np.isnan(log_sim))  # there can be nans due to (inf - inf)
 
     np.exp(tmp_pair, out=tmp_pair)
     col1 = log_col1  # reference
     col2 = log_col2  # reference
 
     with np.errstate(over='ignore'):
-        ratio1 = np.exp(-log_sim)
+        ratio1 = np.exp(-log_sim)  # = p1/p2
         ratio2 = np.exp(log_sim)
 
     # workaround inf values
     mask = np.isinf(ratio1)
-    # print("number of inf entries in ratio1:", sum(mask), file=sys.stderr)
+    #print("number of finite entries in ratio1:", np.sum(np.isfinite(ratio1)), file=sys.stderr)
+    #print("number of finite entries in ratio2:", np.sum(np.isfinite(ratio2)), file=sys.stderr)
     if np.any(mask):
-        log_sim[mask] = -log_sim[mask]
-    mask = np.negative(mask, out=mask)
-    mask = np.logical_and(mask, np.isfinite(ratio2), out=mask)
+        log_sim[mask] = -log_sim[mask]  # p1/p2  == inf => p2 <<< p1 => log(p1/p2 + p2/p1) ~= log(p1/p2)
 
-    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])
-    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)
-    assert np.all(np.isfinite(log_sim))
+    # select elements which are finite in both ratios
+    np.logical_not(mask, out=mask)
+    np.logical_and(mask, np.isfinite(ratio2), out=mask)
+
+    # calculate mixture likelihood for finite components
+    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])  # p1/p2 + p2/p1 = (p1^2 + p2^2)/(p1*p2)
+    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)  # = 2*p1*p2/(p1^2+p2^2)
+    #common.print_probvector(log_sim, file=sys.stderr)
+    
+    #assert np.all(~np.isinf(log_sim))
 
     with np.errstate(invalid='ignore'):
-        mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
+        # (p1^2 + p2^2)/(p1 + p2) = (p1 + p2*(p2/p1))/(p2/p1) + 1) with p1 != 0
+        # put large value in p1, small value in p2 (formula is symmetric)
+        p1 = np.maximum(col1, col2)
+        p2 = np.minimum(col1, col2)
+        r2 = np.minimum(ratio1, ratio2)
+        mix = np.divide(p1 + p2*r2, r2 + 1.)
+        #mask = np.logical_and(col1, col2)
+        #mix = np.ones(tmp_pair.shape[0], dtype=tmp_pair.dtype)
+        #mix[mask] = np.divide(col1[mask] + col2[mask]*ratio2[mask], ratio2[mask] + 1.)
+    #mix = (col1 ** 2 + col2 ** 2) / (col1 + col2)
+
+    #common.print_probvector(mix, file=sys.stderr)
 
     np.multiply(mix, factor, out=mix)
     mix_sum = np.nansum(mix)
-    # print("mix sum:", mix_sum, file=sys.stderr)
     assert mix_sum
     np.divide(mix, mix_sum, out=mix)
+    
     with np.errstate(invalid='ignore'):
         log_sim *= mix
     return log_sim
@@ -287,8 +316,10 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
     for i in range(d):
         for j in range(i+1, d):
             # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            log_p = np.nansum(kbl_similarity(logmat[:, i], logmat[:, j]))  # TODO: pass array instead
-            # print("similarity value is:", p, file=sys.stderr)
+            p = kbl_similarity(logmat[:, i], logmat[:, j])
+            #common.print_probvector(p, file=sys.stderr)
+            log_p = np.nansum(p)  # TODO: pass array instead
+            #print("similarity value is:", log_p, file=sys.stderr)
 
             if log_p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
