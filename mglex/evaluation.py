@@ -222,7 +222,7 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
     return np.sqrt(mse/np.sum(weights)/4.0)
 
 
-def kbl_similarity(log_col1, log_col2):
+def kbl_similarity(log_col1, log_col2, weights=None):
     "A probabilistic distance based on pairwise mixture likelihoods"
 
     tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
@@ -240,13 +240,16 @@ def kbl_similarity(log_col1, log_col2):
     #common.print_probvector(factor, file=sys.stderr)
 
     # compress data with factor of zero
-    mask_nonzero_factor = np.array(factor, dtype=np.bool_)
-    number_nonzero = np.sum(mask_nonzero_factor)
-    if False: #2*number_nonzero > factor.size:  # hardcoded, compress arrays if more than half of entries are zeroes
-        sys.stderr.write("Removing zero entries in data.\n")
-        tmp_pair[:number_nonzero] = tmp_pair[mask_nonzero_factor]
+    mask_nonzero = np.array(factor, dtype=np.bool_)
+    number_nonzero = np.sum(mask_nonzero)
+    #sys.stderr.write("Number of nonzero entries: %i\n" % number_nonzero)
+    if 2*number_nonzero > factor.size:  # hardcoded: compress arrays if >= 50% are zeroes
+        #sys.stderr.write("Removing zero entries in data.\n")
+        tmp_pair[:number_nonzero] = tmp_pair[mask_nonzero]
         tmp_pair.resize((number_nonzero, 2))
-        factor = factor[mask_nonzero_factor]
+        factor = factor[mask_nonzero]
+        if weights is not None:
+            weights = weights[mask_nonzero]
 
     # calculate likelihood ratios for all data points
     log_col1 = tmp_pair[:, 0]  # first column view
@@ -295,12 +298,17 @@ def kbl_similarity(log_col1, log_col2):
     #common.print_probvector(mix, file=sys.stderr)
 
     np.multiply(mix, factor, out=mix)
+
+    if weights is not None:  # weigh the summands by sequence length
+        np.multiply(mix, weights, out=mix)
+
     mix_sum = np.nansum(mix)
     assert mix_sum
     np.divide(mix, mix_sum, out=mix)
     
     with np.errstate(invalid='ignore'):
         log_sim *= mix
+    
     return log_sim
 
 
@@ -312,11 +320,16 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
     # lsums = np.sum(mat, axis=0)
     # wsum = np.sum(weights, dtype=types.large_float_type)
     # w2 = np.divide(weights, wsum).ravel()
+    
+    if weights is not None:
+        assert weights.shape[0] == n
+        weights = np.squeeze(weights, axis=1)/np.mean(weights)
+        assert np.any(weights)
 
     for i in range(d):
         for j in range(i+1, d):
             # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            p = kbl_similarity(logmat[:, i], logmat[:, j])
+            p = kbl_similarity(logmat[:, i], logmat[:, j], weights)
             #common.print_probvector(p, file=sys.stderr)
             log_p = np.nansum(p)  # TODO: pass array instead
             #print("similarity value is:", log_p, file=sys.stderr)

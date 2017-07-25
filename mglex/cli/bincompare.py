@@ -6,12 +6,12 @@ This is the main program which calculates pairwise bin similarities using mixtur
 
 Usage:
   bincompare  (--help | --version)
-  bincompare  (--weight <file>) [--likelihood <file>] [--beta <float>]
+  bincompare  [--weight <file> --likelihood <file>] [--beta <float>]
 
   -h, --help                        Show this screen
   -v, --version                     Show version
   -l <file>, --likelihood <file>    Likelihood matrix; default standard input
-  -w <file>, --weight <file>        Weights (sequence length) file
+  -w <file>, --weight <file>        Optional weights (sequence length) file; default None
   -b <float>, --beta <float>        Beta correction factor (e.g. determined via MSE evaluation); default 1.0
 """
 
@@ -45,9 +45,13 @@ def main(argv):
         likelihood = common.load_probmatrix(sys.stdin)
 
     if argument["--beta"]:
-        likelihood *= float(argument["--beta"])
+        with np.errstate(over='ignore'):
+            likelihood *= float(argument["--beta"])
 
-    weights = common.load_seqlens_file(argument["--weight"])
+    weights = argument["--weight"]
+    if weights is not None:
+        weights = common.load_seqlens_file(weights)
+
     distmat = evaluation.similarity_matrix(likelihood, weights)
     common.write_probmatrix(distmat)
 
