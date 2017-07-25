@@ -227,17 +227,16 @@ def kbl_similarity(log_col1, log_col2, weights=None):
 
     tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
     #common.write_probmatrix(tmp_pair, file=sys.stderr)
-    assert not np.any(np.isnan(tmp_pair))
 
     # shift values before exp to avoid tiny numbers
-    log_shift = tmp_pair.max(axis=1, keepdims=False)
+    log_shift = tmp_pair.max(axis=1, keepdims=True)
+    
     with np.errstate(invalid='ignore'):
-        tmp_pair -= log_shift[:, np.newaxis]  # we add this factor again, later
-        
+        tmp_pair -= log_shift  # we add this factor again, later
+    
     # reduce shift value by common factor and keep factors
-    log_shift -= np.max(log_shift)  # constant factors can be removed in the weights
-    factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
-    #common.print_probvector(factor, file=sys.stderr)
+    log_shift -= np.nanmax(log_shift, keepdims=True)  # constant factors can be removed in the weights
+    factor = np.squeeze(np.exp(log_shift, out=log_shift), axis=1)  # overwrites log_shift
 
     # compress data with factor of zero
     mask_nonzero = np.array(factor, dtype=np.bool_)
@@ -267,8 +266,6 @@ def kbl_similarity(log_col1, log_col2, weights=None):
 
     # workaround inf values
     mask = np.isinf(ratio1)
-    #print("number of finite entries in ratio1:", np.sum(np.isfinite(ratio1)), file=sys.stderr)
-    #print("number of finite entries in ratio2:", np.sum(np.isfinite(ratio2)), file=sys.stderr)
     if np.any(mask):
         log_sim[mask] = -log_sim[mask]  # p1/p2  == inf => p2 <<< p1 => log(p1/p2 + p2/p1) ~= log(p1/p2)
 
@@ -280,8 +277,6 @@ def kbl_similarity(log_col1, log_col2, weights=None):
     log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])  # p1/p2 + p2/p1 = (p1^2 + p2^2)/(p1*p2)
     log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)  # = 2*p1*p2/(p1^2+p2^2)
     #common.print_probvector(log_sim, file=sys.stderr)
-    
-    #assert np.all(~np.isinf(log_sim))
 
     with np.errstate(invalid='ignore'):
         # (p1^2 + p2^2)/(p1 + p2) = (p1 + p2*(p2/p1))/(p2/p1) + 1) with p1 != 0
@@ -312,14 +307,11 @@ def kbl_similarity(log_col1, log_col2, weights=None):
     return log_sim
 
 
-def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
+def similarity_matrix(logmat, weights=None):
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
 
     n, d = logmat.shape
     smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
-    # lsums = np.sum(mat, axis=0)
-    # wsum = np.sum(weights, dtype=types.large_float_type)
-    # w2 = np.divide(weights, wsum).ravel()
     
     if weights is not None:
         assert weights.shape[0] == n
@@ -332,7 +324,6 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
             p = kbl_similarity(logmat[:, i], logmat[:, j], weights)
             #common.print_probvector(p, file=sys.stderr)
             log_p = np.nansum(p)  # TODO: pass array instead
-            #print("similarity value is:", log_p, file=sys.stderr)
 
             if log_p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
