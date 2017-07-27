@@ -222,34 +222,37 @@ def mean_squarred_error(lmat, pmat, weights=None, logarithmic=True):  # TODO: im
     return np.sqrt(mse/np.sum(weights)/4.0)
 
 
-def kbl_similarity(log_col1, log_col2, weights=None):
+def kbl_similarity(log_col1, log_col2, log_weight=None):
     "A probabilistic distance based on pairwise mixture likelihoods"
 
     tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
     #common.write_probmatrix(tmp_pair, file=sys.stderr)
 
     # shift values before exp to avoid tiny numbers
-    log_shift = tmp_pair.max(axis=1, keepdims=True)
+    log_shift = tmp_pair.max(axis=1, keepdims=True)  # TODO: change name to log_factor
     
     with np.errstate(invalid='ignore'):
         tmp_pair -= log_shift  # we add this factor again, later
     
+    # incorporate weights
+    if log_weight is not None:  # weigh the summands
+        log_shift += log_weight
+    
     # reduce shift value by common factor and keep factors
-    log_shift -= np.nanmax(log_shift, keepdims=True)  # constant factors can be removed in the weights
+    log_shift -= np.nanmax(log_shift)  # remove constant factor
+
     factor = np.squeeze(np.exp(log_shift, out=log_shift), axis=1)  # overwrites log_shift
 
     # compress data with factor of zero
+    assert not np.any(np.isnan(factor))  # there shouldn't be nans
     mask_nonzero = np.array(factor, dtype=np.bool_)
     number_nonzero = np.sum(mask_nonzero)
-    #sys.stderr.write("Number of nonzero entries: %i\n" % number_nonzero)
     if 2*number_nonzero > factor.size:  # hardcoded: compress arrays if >= 50% are zeroes
-        #sys.stderr.write("Removing zero entries in data.\n")
+        sys.stderr.write("Reducing number of entries in data to %i\n" % number_nonzero)
         tmp_pair[:number_nonzero] = tmp_pair[mask_nonzero]
         tmp_pair.resize((number_nonzero, 2))
         factor = factor[mask_nonzero]
-        if weights is not None:
-            weights = weights[mask_nonzero]
-
+ 
     # calculate likelihood ratios for all data points
     log_col1 = tmp_pair[:, 0]  # first column view
     log_col2 = tmp_pair[:, 1]  # second column view
@@ -294,36 +297,62 @@ def kbl_similarity(log_col1, log_col2, weights=None):
 
     np.multiply(mix, factor, out=mix)
 
-    if weights is not None:  # weigh the summands by sequence length
-        np.multiply(mix, weights, out=mix)
-
     mix_sum = np.nansum(mix)
-    assert mix_sum
-    np.divide(mix, mix_sum, out=mix)
+    
+    if mix_sum == 0.:
+        return np.nan
     
     with np.errstate(invalid='ignore'):
         log_sim *= mix
     
-    return log_sim
+    return np.nansum(log_sim)/mix_sum
+    
+
+def combine_weight(log_weight, log_responsibility, i, j):
+    """Add log columns in probability weights and combine with sequence length weights"""
+    if log_responsibility is None:
+        return log_weight
+    #ret = np.maximum(log_responsibility[:, i], log_responsibility[:, j])[:, np.newaxis]  # only works for 1/0 weights
+    
+    # calculate log of sum of weights (needs 3n memory)
+    data = log_responsibility[:, (i,j)]  # creates copy of columns
+    data_col = data[:, 0]  # set reduced dim alias
+    extra = np.max(data, axis=1, keepdims=True)
+    extra_col = extra[:, 0]  # set reduced dim alias
+    
+    with np.errstate(invalid='ignore'):
+        data -= extra  # shift: gives nan if both weights are zero (-inf + inf)
+        
+    np.exp(data, out=data)  # transform
+    np.nansum(data, axis=1, out=data_col)  # sumup: set nans to zero
+    np.log(data_col, out=data_col)  # transform back
+    
+    extra_col += data_col  # shift back
+    
+    if log_weight is None:
+        return extra
+    
+    extra += log_weight
+    return extra
 
 
-def similarity_matrix(logmat, weights=None):
+def similarity_matrix(log_mat, log_weight=None, log_responsibility=None):
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
 
-    n, d = logmat.shape
+    n, d = log_mat.shape
     smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
     
-    if weights is not None:
-        assert weights.shape[0] == n
-        weights = np.squeeze(weights, axis=1)/np.mean(weights)
-        assert np.any(weights)
-
+    if log_weight is not None:
+        assert log_weight.shape[0] == n
+        assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
+    
     for i in range(d):
         for j in range(i+1, d):
             # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            p = kbl_similarity(logmat[:, i], logmat[:, j], weights)
-            #common.print_probvector(p, file=sys.stderr)
-            log_p = np.nansum(p)  # TODO: pass array instead
+            lw = combine_weight(log_weight, log_responsibility, i, j)
+            #if lw is not None:
+            #    sys.stderr.write("Nonzero elements in weights: %i\n" % sum(np.isfinite(lw)))
+            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
 
             if log_p >= .0:
                 smat[i, j] = smat[j, i] = 0.0

@@ -53,7 +53,7 @@ def main(argv):
         responsibility = common.load_probmatrix_file(responsibility_filename)
     else:
         responsibility = common.load_probmatrix(sys.stdin)
-    responsibility = np.exp(responsibility, dtype=types.prob_type)
+    np.exp(responsibility, dtype=types.prob_type, out=responsibility)
 
     n, c = responsibility.shape
 
