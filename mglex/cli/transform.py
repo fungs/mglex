@@ -6,17 +6,17 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--likelihood <file>] [--precision <int>] (--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--classindex)
+  transform  [--data <file>] [--precision <int>] (--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--classindex)
 
-  -h, --help                           Show this screen
-  -v, --version                        Show version
-  -l <file>, --likelihood <file>       Likelihood matrix; default standard input
-  -p <int>, --precision <int>          Output precision; default 2
-  -r, --raw-probability                Convert from log to simple representation (small number become zero)
-  -m, --maximum-likelihood             Give only the class(es) with the maximum likelihood a non-zero probability
-  -p, --posterior                      Normalize the likelihood values over classes (uniform class prior)
-  -q, --posterior-ratio                Divide all likelihoods by the maximum likelihood
-  -c, --classindex                     Sparsify by reporting the class index of likelihoods above a threshold
+  -h, --help                       Show this screen
+  -v, --version                    Show version
+  -d <file>, --data <file>         Likelihood matrix; default standard input
+  -p <int>, --precision <int>      Output precision; default 2
+  -r, --raw-probability            Convert from log to simple representation (small number become zero)
+  -m, --maximum-likelihood         Give only the class(es) with the maximum likelihood a non-zero probability
+  -p, --posterior                  Normalize the likelihood values over classes (uniform class prior)
+  -q, --posterior-ratio            Divide all likelihoods by the maximum likelihood
+  -c, --classindex                 Sparsify by reporting the class index of likelihoods above a threshold
 """
 
 import numpy as np
