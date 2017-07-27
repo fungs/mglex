@@ -27,13 +27,13 @@ Method "mse":
  sums to one over all classes.
 
 Usage:
-  classify  (--help | --version)
-  classify  (--responsibility <file>) (--method <method>) (--weight <file>)
-            [--likelihood <file>] [--subsample <int>] [--random-seed <int>] [--beta <from(:to:step)>]...
+  evaluate  (--help | --version)
+  evaluate  (--responsibility <file>) (--method <method>) (--weight <file>)
+            [--data <file>] [--subsample <int>] [--random-seed <int>] [--beta <from(:to:step)>]...
 
   -h, --help                                    Show this screen
   -v, --version                                 Show version
-  -l <file>, --likelihood <file>                Likelihood matrix; default standard input
+  -d <file>, --data <file>                      Likelihood matrix; default standard input
   -r <file>, --responsibility <file>            Responsibility (weight) matrix file
   -w <file>, --weight <file>                    Weights (sequence length) file
   -m <method>, --method <method>                Evaluation method; one of "mse", "co-clustering", "separation"
@@ -92,8 +92,8 @@ def main(argv):
         betalist = [1.0]
 
     # load input
-    if argument["--likelihood"]:
-        likelihood = common.load_probmatrix_file(argument["--likelihood"])
+    if argument["--data"]:
+        likelihood = common.load_probmatrix_file(argument["--data"])
     else:
         likelihood = common.load_probmatrix(sys.stdin)
 
