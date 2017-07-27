@@ -244,11 +244,11 @@ def kbl_similarity(log_col1, log_col2, log_weight=None):
     factor = np.squeeze(np.exp(log_shift, out=log_shift), axis=1)  # overwrites log_shift
 
     # compress data with factor of zero
-    assert not np.any(np.isnan(factor))  # there shouldn't be nans
+    #assert not np.any(np.isnan(factor))  # there shouldn't be nans TODO: check this
     mask_nonzero = np.array(factor, dtype=np.bool_)
     number_nonzero = np.sum(mask_nonzero)
     if 2*number_nonzero > factor.size:  # hardcoded: compress arrays if >= 50% are zeroes
-        sys.stderr.write("Reducing number of entries in data to %i\n" % number_nonzero)
+        #sys.stderr.write("Reducing number of entries in data to %i\n" % number_nonzero)
         tmp_pair[:number_nonzero] = tmp_pair[mask_nonzero]
         tmp_pair.resize((number_nonzero, 2))
         factor = factor[mask_nonzero]
