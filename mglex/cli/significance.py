@@ -15,10 +15,10 @@ Usage:
 
   -h, --help                           Show this screen
   -v, --version                        Show version
+  -d <file>, --data <file>             Log-likelihood matrix for which to calculate p-values; default standard input
   -w <file>, --weight <file>           Weights (sequence length) file
   -n <file>, --nulldata <file>         Log-likelihood matrix with reference (null hypothesis) values
   -r <file>, --responsibility <file>   Log-likelihood responsibility matrix
-  -d <file>, --data <file>             Log-likelihood matrix for which to calculate p-values; default standard input
 """
 
 # TODO: support multiple arguments of the same kind, like multiple label input data
