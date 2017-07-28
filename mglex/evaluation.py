@@ -234,8 +234,7 @@ def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
     with np.errstate(invalid='ignore'):
         tmp_pair -= factor  # we add this factor again, later
     
-    # incorporate weights
-    if log_weight is not None:  # weigh the summands
+    if log_weight is not None:  # incorporate weights, if given
         factor += log_weight
     
     # reduce shift value by common factor and keep factors
