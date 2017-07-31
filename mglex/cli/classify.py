@@ -72,7 +72,9 @@ def main(argv):
             # print(data_obj.context, file=sys.stderr)
 
     if argument["--beta"]:
-        model.beta_correction = float(argument["--beta"])
+        beta = float(argument["--beta"])
+        if beta != 1.0:
+            data *= beta
 
     mat = model.log_likelihood(data)
 

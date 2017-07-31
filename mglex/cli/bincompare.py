@@ -53,7 +53,7 @@ def main(argv):
         beta = float(argument["--beta"])
         if beta != 1.0:
             with np.errstate(over='ignore'):
-                data *= beta
+                likelihood *= beta
 
     # load responsibility matrix
     log_responsibility = argument["--responsibility"]
