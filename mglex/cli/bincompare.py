@@ -6,12 +6,12 @@ This is the main program which calculates pairwise bin similarities using mixtur
 
 Usage:
   bincompare  (--help | --version)
-  bincompare  [--weight <file> --likelihood <file> --responsibility <file> --subset-column <file> --beta <float> --posterior-ratio]
+  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-column <file> --beta <float> --posterior-ratio]
 
   -h, --help                          Show this screen
   -v, --version                       Show version
   -p, --posterior-ratio               Weigh sequences by full bin posterior; default False
-  -l <file>, --likelihood <file>      Likelihood matrix; default standard input
+  -d <file>, --data <file>            Likelihood matrix; default standard input
   -r <file>, --responsibility <file>  Responsibility (weight) matrix file; default None
   -w <file>, --weight <file>          Optional weights (sequence length) file; default None
   -s <file, --subset-column <file>    Use subset of column indices (1-based); default None
@@ -44,21 +44,22 @@ def main(argv):
     common.handle_broken_pipe()
 
     # load input
-    if argument["--likelihood"]:
-        likelihood = common.load_probmatrix_file(argument["--likelihood"])
+    if argument["--data"]:
+        likelihood = common.load_probmatrix_file(argument["--data"])
     else:
         likelihood = common.load_probmatrix(sys.stdin)
 
     if argument["--beta"]:
-        with np.errstate(over='ignore'):
-            likelihood *= float(argument["--beta"])
+        beta = float(argument["--beta"])
+        if beta != 1.0:
+            with np.errstate(over='ignore'):
+                data *= beta
 
     # load responsibility matrix
     log_responsibility = argument["--responsibility"]
     if log_responsibility is not None:
         log_responsibility = common.load_probmatrix_file(log_responsibility)
-        #np.exp(responsibility, dtype=types.prob_type, out=responsibility)
-
+    
     # load weights
     log_weight = argument["--weight"]
     if log_weight is not None:
