@@ -6,18 +6,18 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--data <file>] [--beta <float> --precision <int>] [--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--class-index]
+  transform  [--data <file>] [--beta <float> --precision <int>] [--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>]
 
-  -h, --help                       Show this screen
-  -v, --version                    Show version
-  -d <file>, --data <file>         Likelihood matrix; default standard input
-  -i <int>, --precision <int>      Output precision; default 2
-  -b <float>, --beta <float>       Beta correction factor (e.g. determined via MSE evaluation); default 1.0
-  -r, --raw-probability            Convert from log to simple representation (small number become zero)
-  -m, --maximum-likelihood         Give only the class(es) with the maximum likelihood a non-zero probability
-  -p, --posterior                  Normalize the likelihood values over classes (uniform class prior)
-  -q, --posterior-ratio            Divide all likelihoods by the maximum likelihood
-  -c, --class-index                 Sparsify by reporting the class index of likelihoods above a threshold
+  -h, --help                         Show this screen
+  -v, --version                      Show version
+  -d <file>, --data <file>           Likelihood matrix; default standard input
+  -i <int>, --precision <int>        Output precision; default 2
+  -b <float>, --beta <float>         Beta correction factor (e.g. determined via MSE evaluation); default 1.0
+  -r, --raw-probability              Convert from log to simple representation (small number become zero)
+  -m, --maximum-likelihood           Give only the class(es) with the maximum likelihood a non-zero probability
+  -p, --posterior                    Normalize the likelihood values over classes (uniform class prior)
+  -q, --posterior-ratio              Divide all likelihoods by the maximum likelihood
+  -c <float>, --class-index <float>  Report only class indices (one-based) with likelihoods above threshold; default 1.0
 """
 
 import numpy as np
@@ -85,8 +85,8 @@ def main(argv):
         data -= maxval
         data[np.isinf(maxval)[:, 0]] = -np.inf
 
-    elif argument["--class-index"]:  # TODO: make minval command line parameter
-        minval = np.log(1.0)
+    elif argument["--class-index"]:
+        minval = np.log(float(argument["--class-index"]))
         for row in data >= minval:
             sys.stdout.write(" ".join(["%i" % i for i in np.where(row)[0]]))
             sys.stdout.write("\n")
