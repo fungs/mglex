@@ -6,17 +6,18 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--data <file>] [--precision <int>] (--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--classindex)
+  transform  [--data <file>] [--beta <float> --precision <int>] [--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--class-index]
 
   -h, --help                       Show this screen
   -v, --version                    Show version
   -d <file>, --data <file>         Likelihood matrix; default standard input
-  -p <int>, --precision <int>      Output precision; default 2
+  -i <int>, --precision <int>      Output precision; default 2
+  -b <float>, --beta <float>       Beta correction factor (e.g. determined via MSE evaluation); default 1.0
   -r, --raw-probability            Convert from log to simple representation (small number become zero)
   -m, --maximum-likelihood         Give only the class(es) with the maximum likelihood a non-zero probability
   -p, --posterior                  Normalize the likelihood values over classes (uniform class prior)
   -q, --posterior-ratio            Divide all likelihoods by the maximum likelihood
-  -c, --classindex                 Sparsify by reporting the class index of likelihoods above a threshold
+  -c, --class-index                 Sparsify by reporting the class index of likelihoods above a threshold
 """
 
 import numpy as np
@@ -42,11 +43,20 @@ def main(argv):
     argument = docopt(__doc__, argv=argv, version=__version__)
     common.handle_broken_pipe()
 
+    # TODO:
+    # read, process and write input in blocks using block size
+    # this will be faster and work better with pipes
+
     # load data input
-    if argument["--data"]:  # TODO: block processing
+    if argument["--data"]:
         data = common.load_probmatrix_file(argument["--data"])
     else:
         data = common.load_probmatrix(sys.stdin)
+    
+    if argument["--beta"]:
+        beta = float(argument["--beta"])
+        if beta != 1.0:
+            data *= beta
 
     if argument["--raw-probability"]:
         if data.dtype == types.prob_type:
@@ -54,13 +64,15 @@ def main(argv):
         else:
             data = np.exp(data, dtype=types.prob_type)
 
-    if argument["--maximum-likelihood"]:
+    elif argument["--maximum-likelihood"]:  # TODO: speed up
         maxval = np.nanmax(data, axis=1, keepdims=True)
         mask = data == maxval
-        data = -np.inf
-        data[np.logical_and(mask, np.isfinite(maxval))] = -np.log(np.sum(mask, axis=1))
+        data[:] = -np.inf
+        mask &= np.isfinite(maxval)
+        for drow, mrow, val in zip(data, mask, -np.log(np.sum(mask, axis=1))):
+            drow[mrow] = val
 
-    if argument["--posterior"]:
+    elif argument["--posterior"]:
         if data.dtype == types.prob_type:
             common.exp_normalize_inplace(data)
             np.log(data, out=data)
@@ -68,17 +80,17 @@ def main(argv):
             tmp = common.exp_normalize(data)
             np.log(tmp, out=data)
     
-    if argument["--posterior-ratio"]:
-        maxval = np.nanmax(data, keepdims=True)
+    elif argument["--posterior-ratio"]:
+        maxval = np.nanmax(data, axis=1, keepdims=True)
         data -= maxval
-        data[maxval == -np.inf] = -np.inf
+        data[np.isinf(maxval)[:, 0]] = -np.inf
 
-    if argument["--class-index"]:
+    elif argument["--class-index"]:  # TODO: make minval command line parameter
         minval = np.log(1.0)
         for row in data >= minval:
-            sys.stdout.write("\t".join(["%i" % i for i in np.where(row)[0]]))
+            sys.stdout.write(" ".join(["%i" % i for i in np.where(row)[0]]))
             sys.stdout.write("\n")
-        sys.exit(0)
+        sys.exit(0)  # do not output original matrix
 
     common.write_probmatrix(data)
 
