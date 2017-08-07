@@ -6,17 +6,18 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--data <file>] [--beta <float> --precision <int>] [--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>]
+  transform  [--data <file>] [--beta <float> --precision <int> --raw-probability] [--maximum-likelihood|--posterior|--posterior-ratio|--mixture-likelihood|--class-index <float>]
 
   -h, --help                         Show this screen
   -v, --version                      Show version
   -d <file>, --data <file>           Likelihood matrix; default standard input
   -i <int>, --precision <int>        Output precision; default 2
   -b <float>, --beta <float>         Beta correction factor (e.g. determined via MSE evaluation); default 1.0
-  -r, --raw-probability              Convert from log to simple representation (small number become zero)
+  -r, --raw-probability              Output as raw probabilities, not in log scale (small number become zero)
   -m, --maximum-likelihood           Give only the class(es) with the maximum likelihood a non-zero probability
   -p, --posterior                    Normalize the likelihood values over classes (uniform class prior)
   -q, --posterior-ratio              Divide all likelihoods by the maximum likelihood
+  -x, --mixture-likelihood           Combine different class likelihoods into a mixture likelihood per datum
   -c <float>, --class-index <float>  Report only class indices (one-based) with likelihoods above threshold; default 1.0
 """
 
@@ -44,8 +45,8 @@ def main(argv):
     common.handle_broken_pipe()
 
     # TODO:
-    # read, process and write input in blocks using block size
-    # this will be faster and work better with pipes
+    # * read, process and write input in blocks using block size (faster and work better with pipes)
+    # * put transforms in separate files
 
     # load data input
     if argument["--data"]:
@@ -56,15 +57,10 @@ def main(argv):
     if argument["--beta"]:
         beta = float(argument["--beta"])
         if beta != 1.0:
-            data *= beta
+            with np.errstate(over='ignore'):
+                data *= beta
 
-    if argument["--raw-probability"]:
-        if data.dtype == types.prob_type:
-            np.exp(data, out=data)
-        else:
-            data = np.exp(data, dtype=types.prob_type)
-
-    elif argument["--maximum-likelihood"]:  # TODO: speed up
+    if argument["--maximum-likelihood"]:  # TODO: speed up
         maxval = np.nanmax(data, axis=1, keepdims=True)
         mask = data == maxval
         data[:] = -np.inf
@@ -83,7 +79,22 @@ def main(argv):
     elif argument["--posterior-ratio"]:
         maxval = np.nanmax(data, axis=1, keepdims=True)
         data -= maxval
-        data[np.isinf(maxval)[:, 0]] = -np.inf
+        data[~np.isfinite(maxval)[:, 0]] = -np.inf  # fix all -inf entries TODO: make more efficient
+
+    elif argument["--mixture-likelihood"]:
+        weight = common.exp_normalize_preventnan(data)
+        with np.errstate(divide='ignore'):  # zero becomes -inf
+            np.log(weight, out=weight)
+        data += weight  # multiply with posterior in log-space
+        maxval = np.max(data, axis=1, keepdims=True)
+        with np.errstate(invalid='ignore'):  # creates nans, we use nansum later
+            data -= maxval  # shift values
+        np.exp(data, out=data)
+        np.nansum(data, axis=1, out=data[:, 0])  # ignore nans from 0*-inf
+        data = data[:, 0:1]  # shrink by changing view on data
+        with np.errstate(invalid='ignore'):  # zeros become -inf
+            np.log(data)
+        data += maxval  # shift back
 
     elif argument["--class-index"]:
         minval = np.log(float(argument["--class-index"]))
@@ -91,6 +102,12 @@ def main(argv):
             sys.stdout.write(" ".join(["%i" % i for i in np.where(row)[0]]))
             sys.stdout.write("\n")
         sys.exit(0)  # do not output original matrix
+
+    if argument["--raw-probability"]:
+        if data.dtype == types.prob_type:
+            np.exp(data, out=data)
+        else:
+            data = np.exp(data, dtype=types.prob_type)
 
     common.write_probmatrix(data)
 

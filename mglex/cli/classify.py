@@ -74,7 +74,8 @@ def main(argv):
     if argument["--beta"]:
         beta = float(argument["--beta"])
         if beta != 1.0:
-            data *= beta
+            with np.errstate(over='ignore'):
+                data *= beta
 
     mat = model.log_likelihood(data)
 

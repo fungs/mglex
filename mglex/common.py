@@ -132,6 +132,16 @@ def exp_normalize(data):
     return ret
 
 
+def exp_normalize_preventnan(data):  # TODO: make more efficient
+    ret = data.copy()
+    maxval = np.max(data, axis=1, keepdims=True)
+    mask = np.isfinite(maxval[:, 0])
+    ret[mask] -=  maxval[mask]  # avoid tiny numbers
+    ret = np.exp(ret)  # TODO: with or without mask?
+    ret[mask] /= np.sum(ret[mask], axis=1, keepdims=True)
+    return ret
+
+
 def exp_normalize_1d_inplace(data):  # important: works in-place
     data -= data.max()  # avoid tiny numbers
     data = np.exp(data)
