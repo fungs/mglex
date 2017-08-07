@@ -420,5 +420,27 @@ def similarity_matrix(log_mat, log_weight=None, log_responsibility=None):
     return smat
 
 
+def similarity_iter(log_mat, log_weight=None, log_responsibility=None):
+    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
+    
+    n, d = log_mat.shape
+    
+    if log_weight is not None:
+        assert log_weight.shape[0] == n
+        assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
+    
+    for i in range(d):
+        for j in range(i + 1, d):
+            lw = combine_weight(log_weight, log_responsibility, i, j)
+            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
+            
+            if log_p >= .0:
+                yield i, j, .0
+                if log_p > .0:
+                    warnings.warn("Similarity larger than 1.0", UserWarning)
+            else:
+                yield i, j, log_p
+
+
 if __name__ == "__main__":
     pass

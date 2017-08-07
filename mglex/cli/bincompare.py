@@ -6,7 +6,7 @@ This is the main program which calculates pairwise bin similarities using mixtur
 
 Usage:
   bincompare  (--help | --version)
-  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-column <file> --beta <float> --posterior-ratio]
+  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-column <file> --beta <float> --posterior-ratio --edge-list <float>]
 
   -h, --help                          Show this screen
   -v, --version                       Show version
@@ -16,7 +16,7 @@ Usage:
   -w <file>, --weight <file>          Optional weights (sequence length) file; default None
   -s <file, --subset-column <file>    Use subset of column indices (1-based); default None
   -b <float>, --beta <float>          Beta correction factor (e.g. determined via MSE evaluation); default 1.0
-  
+  -e <float>, --edge-list <float>     If given, output distances as edge list, suppressing values higher than threshold
 """
 
 import sys
@@ -82,8 +82,14 @@ def main(argv):
     if not np.all(np.isfinite(np.sum(likelihood, axis=1))):
         warnings.warn("Warning: some sequences have all zero likelihood and are ignored in distance calculations", UserWarning)
 
-    distmat = evaluation.similarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)
-    common.write_probmatrix(distmat)
+    if argument["--edge-list"]:
+        threshold = -float(argument["--edge-list"])
+        for i, j, dist in evaluation.similarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
+            if dist < threshold:
+                sys.stdout.write("%i\t%i\t.2f\n" % (i+1, j+1, dist))  # TODO: make precision configurable
+    else:
+        distmat = evaluation.similarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)
+        common.write_probmatrix(distmat)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
