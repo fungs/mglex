@@ -261,7 +261,7 @@ def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
 
     # if 2*n <= factor.size:  # hardcoded: compress arrays if >= 50% are zeroes
     if n < factor.shape[0]:
-        sys.stderr.write("Step 1: reducing number of entries in data to %i\n" % n)
+        #sys.stderr.write("Step 1: reducing number of entries in data to %i\n" % n)
         tmp_pair[:n] = tmp_pair[mask]
         tmp_pair.resize((n, 2))  # resize
         factor[:n] = factor[mask]
@@ -317,7 +317,7 @@ def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
         return np.nan
     
     if n < log_sim.size:  # TODO: use masked array instead
-        sys.stderr.write("Step 2: reducing number of entries in data to %i\n" % n)
+        #sys.stderr.write("Step 2: reducing number of entries in data to %i\n" % n)
         log_sim[:n] = log_sim[mask]
         log_sim.resize(n)  # shrink array
         factor[:n] = factor[mask]

@@ -10,13 +10,14 @@ Usage:
 
   -h, --help                          Show this screen
   -v, --version                       Show version
-  -p, --posterior-ratio               Weigh sequences by full bin posterior; default False
-  -d <file>, --data <file>            Likelihood matrix; default standard input
-  -r <file>, --responsibility <file>  Responsibility (weight) matrix file; default None
-  -w <file>, --weight <file>          Optional weights (sequence length) file; default None
-  -s <file, --subset-column <file>    Use subset of column indices (1-based); default None
-  -b <float>, --beta <float>          Beta correction factor (e.g. determined via MSE evaluation); default 1.0
-  -e <float>, --edge-list <float>     If given, output distances as edge list, suppressing values higher than threshold
+  -p, --posterior-ratio               Weigh sequences by full bin posterior [default: False]
+  -d <file>, --data <file>            Likelihood matrix [standard input]
+  -r <file>, --responsibility <file>  Responsibility (weight) matrix file [None]
+  -w <file>, --weight <file>          Optional weights (sequence length) file [None]
+  -s <file, --subset-column <file>    Use subset of column indices (1-based) [None]
+  -b <float>, --beta <float>          Beta correction factor (e.g. determined via MSE evaluation) [default: 1.0]
+  -e <float>, --edge-list <float>     If given, output distances as edge list;
+                                      only distances <= threshold are reported; use "inf" to show all
 """
 
 import sys
@@ -85,8 +86,8 @@ def main(argv):
     if argument["--edge-list"]:
         threshold = -float(argument["--edge-list"])
         for i, j, dist in evaluation.similarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
-            if dist < threshold:
-                sys.stdout.write("%i\t%i\t.2f\n" % (i+1, j+1, dist))  # TODO: make precision configurable
+            if dist >= threshold:
+                sys.stdout.write("%i\t%i\t%.2f\n" % (i+1, j+1, -dist))  # TODO: make precision configurable
     else:
         distmat = evaluation.similarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)
         common.write_probmatrix(distmat)
