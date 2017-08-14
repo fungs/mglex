@@ -10,7 +10,7 @@ Usage:
 
   -h, --help                          Show this screen
   -v, --version                       Show version
-  -p, --posterior-ratio               Weigh sequences by full bin posterior [default: False]
+  -q, --posterior-ratio               Weigh sequences by (subset) bin posterior [default: False]
   -d <file>, --data <file>            Likelihood matrix [standard input]
   -r <file>, --responsibility <file>  Responsibility (weight) matrix file [None]
   -w <file>, --weight <file>          Optional weights (sequence length) file [None]
@@ -66,28 +66,33 @@ def main(argv):
     if log_weight is not None:
         log_weight = np.log(common.load_seqlens_file(log_weight))
     
-    if argument["--posterior-ratio"]:  # scale likelihood proportional to best classification (log(best) = 0)
-        with np.errstate(invalid='ignore'):
-            likelihood -= np.max(likelihood, axis=1, keepdims=True)
-    
     # load subset columns
     subset_cols = argument["--subset-column"]
     if subset_cols is not None:
         with open(subset_cols, "r") as f:
-            subset_cols = sorted(set(int(line.rstrip("\n"))-1 for line in f))
+            subset_cols = sorted(set(int(line.rstrip("\n"))-1 for line in f))  # convert to zero-based indexing
             assert subset_cols[0] >= 0
         likelihood = likelihood[:, subset_cols]
         if log_responsibility is not None:
             log_responsibility = log_responsibility[:, subset_cols]
+
+    # scale likelihood proportional to best classification (log(best) = 0)
+    if argument["--posterior-ratio"]:
+        with np.errstate(invalid='ignore'):
+            likelihood -= np.max(likelihood, axis=1, keepdims=True)
 
     if not np.all(np.isfinite(np.sum(likelihood, axis=1))):
         warnings.warn("Warning: some sequences have all zero likelihood and are ignored in distance calculations", UserWarning)
 
     if argument["--edge-list"]:
         threshold = -float(argument["--edge-list"])
+        if subset_cols is None:
+            colnames = list(range(likelihood.shape[1]))
+        else:
+            colnames = subset_cols
         for i, j, dist in evaluation.similarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
             if dist >= threshold:
-                sys.stdout.write("%i\t%i\t%.2f\n" % (i+1, j+1, -dist))  # TODO: make precision configurable
+                sys.stdout.write("%i\t%i\t%.2f\n" % (colnames[i]+1, colnames[j]+1, -dist))  # TODO: make precision configurable
     else:
         distmat = evaluation.similarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)
         common.write_probmatrix(distmat)
