@@ -178,7 +178,7 @@ def weighted_std_matrix(data, weights, dtype=types.large_float_type, shrink_matr
             print(d.shape, w.shape, m.shape, file=stderr)
     else:
         d = d.copy()
-        select = np.ones(data.shape[1], dtype=np.bool)
+        select = np.ones(data.shape[1], dtype=np.bool_)
 
     assert d.shape == m.shape
 
@@ -240,7 +240,7 @@ def weighted_std_iterative(data, weights, dtype=types.large_float_type):
     axis = swapindex_2d[axis]  # TODO: remove
     max_valid_value = np.floor(np.sqrt(np.finfo(data.dtype).max))
     data_weighted_var = np.empty(data.shape[axis], dtype=types.large_float_type)
-    # data_weighted_var_mask = np.empty(data.shape[axis], dtype=np.bool)
+    # data_weighted_var_mask = np.empty(data.shape[axis], dtype=np.bool_)
 
     for i, d, w in zip(count(0), np.rollaxis(data, axis), np.rollaxis(weights, axis)):
         # ignore nan or infinity values

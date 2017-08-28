@@ -247,73 +247,194 @@ def mean_squared_error_flex(lmat, pmat, weights=None, logarithmic=True):  # TODO
     return mse/num_groups  # groups are weighted equally
 
 
-def kbl_similarity(log_col1, log_col2):
+def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
+    "A probabilistic distance based on pairwise mixture likelihoods"
+
     tmp_pair = np.column_stack((log_col1, log_col2))  # creates a copy
-    log_shift = tmp_pair.max(axis=1, keepdims=False)  # shift values before exp to avoid tiny numbers
-    tmp_pair -= log_shift[:, np.newaxis]
+    #common.write_probmatrix(tmp_pair, file=sys.stderr)
 
-    # reduce shift value by common factor and compress data factors are sparse
-    log_shift -= log_shift.max()
-    factor = np.exp(log_shift, out=log_shift)  # overwrites log_shift
+    # shift values before exp to avoid tiny numbers
+    factor = tmp_pair.max(axis=1, keepdims=True)
+    
+    with np.errstate(invalid='ignore'):
+        tmp_pair -= factor  # we add this factor again, later
+    
+    if log_weight is not None:  # incorporate weights, if given
+        factor += log_weight
+    
+    # reduce shift value by common factor and keep factors
+    with np.errstate(invalid='ignore'):
+        maxval = np.nanmax(factor)
+        if maxval > -np.inf:
+            factor -= maxval  # remove constant factor
 
-    mask = np.array(factor, dtype=np.bool_)
-    number_nonzero = mask.sum()
-    if 2*number_nonzero > factor.size:  # hard-coded threshold
-        tmp_pair[:number_nonzero] = tmp_pair[mask]
-        tmp_pair.resize((number_nonzero, 2))
-        factor = factor[mask]
+    # TODO: early compress using -inf values will save some time
+    # mask = np.isfinite(np.squeeze(factor, axis=1))  # reduce to non-zero entries
 
+    # convert factor from log-space with higher precision, high negative values get zero-ed out
+    if factor.dtype == types.large_float_type:
+        np.exp(factor, out=factor)  # this will zero out some factors!
+    else:
+        factor = np.exp(factor, dtype=types.large_float_type)
+
+    # compress data with factor of zero
+    mask = np.array(np.squeeze(factor, axis=1), dtype=np.bool_)
+    n = np.sum(mask)
+
+    if n == 0:
+        return -np.nan
+
+    # if 2*n <= factor.size:  # hardcoded: compress arrays if >= 50% are zeroes
+    if n < factor.shape[0]:
+        #sys.stderr.write("Step 1: reducing number of entries in data to %i\n" % n)
+        tmp_pair[:n] = tmp_pair[mask]
+        tmp_pair.resize((n, 2))  # resize
+        factor[:n] = factor[mask]
+        factor.resize(n)  # resize and change dimension
+    
+    # calculate likelihood ratios for all data points
     log_col1 = tmp_pair[:, 0]  # first column view
     log_col2 = tmp_pair[:, 1]  # second column view
-    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)
+    #assert log_col1.size == n
+    
+    log_sim = np.subtract(log_col2, log_col1, dtype=types.large_float_type)  # = log(p2/p1)
+    #assert not np.any(np.isnan(log_sim))  # there can be nans due to (inf - inf)
 
     np.exp(tmp_pair, out=tmp_pair)
     col1 = log_col1  # reference
     col2 = log_col2  # reference
 
     with np.errstate(over='ignore'):
-        ratio1 = np.exp(-log_sim)
-        ratio2 = np.exp(log_sim)
+        ratio1 = np.exp(-log_sim, dtype=types.large_float_type)  # = p1/p2
+        ratio2 = np.exp(log_sim, dtype=types.large_float_type)  # = p2/p1
 
     # workaround inf values
     mask = np.isinf(ratio1)
-    # print("number of inf entries in ratio1:", sum(mask), file=sys.stderr)
     if np.any(mask):
-        log_sim[mask] = -log_sim[mask]
-    mask = np.negative(mask, out=mask)
-    mask = np.logical_and(mask, np.isfinite(ratio2), out=mask)
+        log_sim[mask] = -log_sim[mask]  # p1/p2  == inf => p2 <<< p1 => log(p1/p2 + p2/p1) ~= log(p1/p2)
 
-    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])
-    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)
-    assert np.all(np.isfinite(log_sim))
+    # select elements which are finite in both ratios
+    np.logical_not(mask, out=mask)
+    np.logical_and(mask, np.isfinite(ratio2), out=mask)
 
+    # calculate mixture likelihood for finite components
+    log_sim[mask] = np.log(ratio2[mask] + 1./ratio2[mask])  # p1/p2 + p2/p1 = (p1^2 + p2^2)/(p1*p2)
+    log_sim = np.subtract(np.log(2.), log_sim, out=log_sim)  # = 2*p1*p2/(p1^2+p2^2)
+    #common.print_probvector(log_sim, file=sys.stderr)
+
+    # (p1^2 + p2^2)/(p1 + p2) = (p1 + p2*(p2/p1))/(p2/p1) + 1) with p1 != 0
+    # put large value in p1, small value in p2 (formula is symmetric)
+    p1 = np.maximum(col1, col2)
+    p2 = np.minimum(col1, col2)
+    r2 = np.minimum(ratio1, ratio2)
     with np.errstate(invalid='ignore'):
-        mix = np.divide(col1 + col2*ratio2, ratio2 + 1.)
+        mix = np.divide(p1 + p2*r2, r2 + 1.)
 
-    np.multiply(mix, factor, out=mix)
-    mix_sum = np.nansum(mix)
-    # print("mix sum:", mix_sum, file=sys.stderr)
-    assert mix_sum
-    np.divide(mix, mix_sum, out=mix)
+    #common.print_probvector(mix, file=sys.stderr)
+    factor *= mix #np.squeeze(factor, axis=1) # TODO: might give zero factors: remove or use log-space
+    
+    # compress remove all nan values
+    mask = ~np.isnan(log_sim)
+    n = np.sum(mask)
+    
+    if n == 0:
+        sys.stderr.write("All logs are Nan!\n" % n)
+        return np.nan
+    
+    if n < log_sim.size:  # TODO: use masked array instead
+        #sys.stderr.write("Step 2: reducing number of entries in data to %i\n" % n)
+        log_sim[:n] = log_sim[mask]
+        log_sim.resize(n)  # shrink array
+        factor[:n] = factor[mask]
+        factor.resize(n)  # shrink array
+    
+    if truncate:  # if single entry is -inf, then distance is -inf; therefore we use a truncated mean
+        truncate_oneside = truncate/2.
+        sort_order = np.argsort(log_sim)
+        factor[:] = factor[sort_order]
+        cum_factor = np.cumsum(factor)
+        factor_sum_trunc = factor_sum = cum_factor[-1]
+        
+        # get right margin
+        right_margin = 0
+        right_threshold = factor_sum * (1. - truncate_oneside)
+        for i, (v, v_prev) in enumerate(zip(cum_factor[::-1], itertools.chain([factor_sum], cum_factor[::-1]))):
+            #print(-i, v, v_prev, file=sys.stderr)
+            if v < right_threshold:
+                right_margin = i-1
+                factor_sum_trunc = v_prev
+                break
+        #print("Right index:", -right_margin, file=sys.stderr)
+
+        # get left margin
+        left_margin = 0
+        left_threshold = factor_sum * truncate_oneside
+        for i, (v, v_prev) in enumerate(zip(cum_factor, itertools.chain([.0], cum_factor))):
+            # print(-i, v, v_prev, file=sys.stderr)
+            if v >= left_threshold:
+                left_margin = i
+                factor_sum_trunc -= v_prev
+                break
+        #print("Left index:", left_margin, file=sys.stderr)
+
+        #common.write_probmatrix(np.column_stack((log_sim[sort_order], cum_factor, factor)), file=sys.stderr)
+
+        if right_margin > 0:
+            #print("on-the-fly calculation", factor_sum_trunc, np.sum(factor[left_margin:-right_margin]), file=sys.stderr)
+            return np.dot(log_sim[sort_order][left_margin:-right_margin], factor[left_margin:-right_margin])/factor_sum_trunc
+        #print("on-the-fly calculation", factor_sum_trunc, np.sum(factor[left_margin:]), file=sys.stderr)
+        return np.dot(log_sim[sort_order][left_margin:], factor[left_margin:])/factor_sum_trunc
+    
+    
+    #return np.nansum(np.multiply(log_sim, factor))/np.nansum(factor)
+    return np.dot(log_sim, factor)/np.nansum(factor)  # should not produce nans
+
+
+def combine_weight(log_weight, log_responsibility, i, j):
+    """Add log columns in probability weights and combine with sequence length weights"""
+    if log_responsibility is None:
+        return log_weight
+    #ret = np.maximum(log_responsibility[:, i], log_responsibility[:, j])[:, np.newaxis]  # only works for 1/0 weights
+    
+    # calculate log of sum of weights (needs 3n memory)
+    data = log_responsibility[:, (i,j)]  # creates copy of columns
+    data_col = data[:, 0]  # set reduced dim alias
+    extra = np.max(data, axis=1, keepdims=True)
+    extra_col = extra[:, 0]  # set reduced dim alias
+    
     with np.errstate(invalid='ignore'):
-        log_sim *= mix
-    return log_sim
+        data -= extra  # shift: gives nan if both weights are zero (-inf + inf)
+        
+    np.exp(data, out=data)  # transform
+    np.nansum(data, axis=1, out=data_col)  # sumup: set nans to zero
+    np.log(data_col, out=data_col)  # transform back
+    
+    extra_col += data_col  # shift back
+    
+    if log_weight is None:
+        return extra
+    
+    extra += log_weight
+    return extra
 
 
-def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length weights and weights=None?
+def similarity_matrix(log_mat, log_weight=None, log_responsibility=None):
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
 
-    n, d = logmat.shape
+    n, d = log_mat.shape
     smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
-    # lsums = np.sum(mat, axis=0)
-    # wsum = np.sum(weights, dtype=types.large_float_type)
-    # w2 = np.divide(weights, wsum).ravel()
-
+    
+    if log_weight is not None:
+        assert log_weight.shape[0] == n
+        assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
+    
     for i in range(d):
         for j in range(i+1, d):
             # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            log_p = np.nansum(kbl_similarity(logmat[:, i], logmat[:, j]))  # TODO: pass array instead
-            # print("similarity value is:", p, file=sys.stderr)
+            lw = combine_weight(log_weight, log_responsibility, i, j)
+            #if lw is not None:
+            #    sys.stderr.write("Nonzero elements in weights: %i\n" % sum(np.isfinite(lw)))
+            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
 
             if log_p >= .0:
                 smat[i, j] = smat[j, i] = 0.0
@@ -322,6 +443,28 @@ def similarity_matrix(logmat, weights=None):  # TODO: implement sequence length 
             else:
                 smat[i, j] = smat[j, i] = log_p
     return smat
+
+
+def similarity_iter(log_mat, log_weight=None, log_responsibility=None):
+    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
+    
+    n, d = log_mat.shape
+    
+    if log_weight is not None:
+        assert log_weight.shape[0] == n
+        assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
+    
+    for i in range(d):
+        for j in range(i + 1, d):
+            lw = combine_weight(log_weight, log_responsibility, i, j)
+            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
+            
+            if log_p >= .0:
+                yield i, j, .0
+                if log_p > .0:
+                    warnings.warn("Similarity larger than 1.0", UserWarning)
+            else:
+                yield i, j, log_p
 
 
 if __name__ == "__main__":
