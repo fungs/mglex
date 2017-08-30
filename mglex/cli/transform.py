@@ -6,8 +6,9 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--data <file>] [--beta <float> --precision <int>] [
-  --logarithm|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>|--raw-probability]
+  transform  [--data <file>] [--beta <float> --precision <int>]
+             [--logarithm|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>]
+             [--raw-probability]
 
   -h, --help                         Show this screen
   -v, --version                      Show version
