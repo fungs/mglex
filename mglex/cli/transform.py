@@ -6,17 +6,19 @@ This script reads a likelihood matrix and applies the given transformation to it
 
 Usage:
   transform  (--help | --version)
-  transform  [--data <file>] [--beta <float> --precision <int>] [--raw-probability|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>]
+  transform  [--data <file>] [--beta <float> --precision <int>] [
+  --logarithm|--maximum-likelihood|--posterior|--posterior-ratio|--class-index <float>|--raw-probability]
 
   -h, --help                         Show this screen
   -v, --version                      Show version
   -d <file>, --data <file>           Likelihood matrix; default standard input
   -i <int>, --precision <int>        Output precision; default 2
   -b <float>, --beta <float>         Beta correction factor (e.g. determined via MSE evaluation); default 1.0
-  -r, --raw-probability              Convert from log to simple representation (small number become zero)
+  -r, --raw-probability              Show output in normal representation (small number become zero)
   -m, --maximum-likelihood           Give only the class(es) with the maximum likelihood a non-zero probability
   -p, --posterior                    Normalize the likelihood values over classes (uniform class prior)
   -q, --posterior-ratio              Divide all likelihoods by the maximum likelihood
+  -l, --logarithm                    Convert from simple to logarithmic format
   -c <float>, --class-index <float>  Report only class indices (one-based) with likelihoods above threshold; default 1.0
 """
 
@@ -58,13 +60,7 @@ def main(argv):
         if beta != 1.0:
             data *= beta
 
-    if argument["--raw-probability"]:
-        if data.dtype == types.prob_type:
-            np.exp(data, out=data)
-        else:
-            data = np.exp(data, dtype=types.prob_type)
-
-    elif argument["--maximum-likelihood"]:  # TODO: speed up
+    if argument["--maximum-likelihood"]:  # TODO: speed up
         maxval = np.nanmax(data, axis=1, keepdims=True)
         mask = data == maxval
         data[:] = -np.inf
@@ -91,9 +87,20 @@ def main(argv):
             sys.stdout.write(" ".join(["%i" % i for i in np.where(row)[0]]))
             sys.stdout.write("\n")
         sys.exit(0)  # do not output original matrix
+    
+    if argument["--logarithm"]:  # adjust reading function
+        if data.dtype == types.logprob_type:
+            np.log(-data, out=data)
+        else:
+            data = np.log(-data, dtype=types.logprob_type)
+    
+    if argument["--raw-probability"]:
+        if data.dtype == types.prob_type:
+            np.exp(data, out=data)
+        else:
+            data = np.exp(data, dtype=types.prob_type)
 
     common.write_probmatrix(data)
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])
