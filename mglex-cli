@@ -18,6 +18,7 @@ Here are the commands to run:
    significance      Give a null model log-likelihood distribution and calculate p-values for unseen data
    bincompare        Calculate bin divergences using the data likelihood values
    transform         Transform probability matrices
+   spread            Spread numeric sequence features onto models using a data responsibility matrix.
 
 See 'mglex-cli <command> --help' for more information on a specific command.
 """
