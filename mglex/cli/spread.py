@@ -45,9 +45,9 @@ def main(argv):
 
     # load data input
     if argument["--data"]:  # TODO: define type different from probabilities
-        data = common.load_probmatrix_file(argument["--data"])
+        data = common.load_matrix_file(argument["--data"], dtype=types.large_float_type)
     else:
-        data = common.load_probmatrix(sys.stdin)
+        data = common.load_matrix(sys.stdin, dtype=types.large_float_type)
     
     responsibility = common.load_probmatrix_file(argument["--responsibility"])
     np.exp(responsibility, dtype=types.prob_type, out=responsibility)  # TODO: work in log-space?
@@ -63,13 +63,13 @@ def main(argv):
         else:
             normalization = responsibility.shape[0]
     else:
-        normalization = 1.
+        normalization = None
     
     # features: NxF, probs: NxC -> output: CxF
     spread = np.dot(responsibility.T, data)
-    np.divide(spread, normalization, out=spread)
-    common.write_probmatrix(spread)
-
+    if normalization is not None:
+        np.divide(spread, normalization, out=spread)
+    common.write_matrix(spread)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
