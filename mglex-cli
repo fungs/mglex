@@ -11,12 +11,14 @@ Usage:
   -v, --version      Show version
 
 Here are the commands to run:
-   train             Train a model (set maximum-likelihood parameters)
-   classify          Calculate likelihood of data under a model
    buildmatrix       Construct a responsibility matrix for grouped data
+   train             Train a model
+   classify          Calculate likelihood of data under a model
    evaluate          Evaluate classifications using a reference (true) responsibility matrix
    significance      Give a null model log-likelihood distribution and calculate p-values for unseen data
-   bincompare        Compare bins by likelihood values
+   bincompare        Calculate bin divergences using the data likelihood values
+   transform         Transform probability matrices
+   spread            Spread numeric sequence features onto models using a data responsibility matrix
 
 See 'mglex-cli <command> --help' for more information on a specific command.
 """

@@ -27,16 +27,17 @@ Method "mse":
  sums to one over all classes.
 
 Usage:
-  classify  (--help | --version)
-  classify  (--responsibility <file>) (--method <method>) (--weight <file>)
-            [--likelihood <file>] [--subsample <int>] [--random-seed <int>] [--beta <from(:to:step)>]...
+  evaluate  (--help | --version)
+  evaluate  (--responsibility <file>) (--method <method>) (--weight <file>)
+            [--data <file>] [--subsample <int>] [--random-seed <int>] [--beta <from(:to:step)>]...
 
   -h, --help                                    Show this screen
   -v, --version                                 Show version
-  -l <file>, --likelihood <file>                Likelihood matrix; default standard input
+  -d <file>, --data <file>                      Likelihood matrix; default standard input
   -r <file>, --responsibility <file>            Responsibility (weight) matrix file
   -w <file>, --weight <file>                    Weights (sequence length) file
-  -m <method>, --method <method>                Evaluation method; one of "mse", "co-clustering", "separation"
+  -m <method>, --method <method>                Evaluation method; one of "mse", "mse-flex",
+                                                "co-clustering", "separation"
   -s <int>, --subsample <int>                   Subsample this number of data points for faster calculation
   -z <int>, --random-seed <int>                 Seed for random operations
   -b <from(:to:step)>, --beta <from(:to:step)>  Beta correction factor(s) to evaluate; default 1.0
@@ -61,7 +62,8 @@ from mglex import __version__
 
 methods = {"separation": evaluation.twoclass_separation,
            "co-clustering": evaluation.expected_pairwise_clustering,
-           "mse": evaluation.mean_squarred_error
+           "mse": evaluation.mean_squared_error,
+           "mse-flex": evaluation.mean_squared_error_flex
           }
 
 
@@ -92,8 +94,8 @@ def main(argv):
         betalist = [1.0]
 
     # load input
-    if argument["--likelihood"]:
-        likelihood = common.load_probmatrix_file(argument["--likelihood"])
+    if argument["--data"]:
+        likelihood = common.load_probmatrix_file(argument["--data"])
     else:
         likelihood = common.load_probmatrix(sys.stdin)
 
@@ -102,7 +104,7 @@ def main(argv):
     # weights = 100.0*np.asarray(weights/weights.max(), dtype=types.prob_type)  # TODO: refactor
 
     n = likelihood.shape[0]
-    if subsample and subsample < n:  # random subsampling, if requested
+    if subsample and subsample < n:  # subsample input sequences, if requested
         try:
             common.set_random_seed(int(argument["--random-seed"]))
         except TypeError:

@@ -77,6 +77,10 @@ def logbinom(n, k):
     return gammaln(n+1) - gammaln(k+1) - gammaln(n-k+1)
 
 
+def logmultinom(n, k):
+    return gammaln(n+1) - np.sum(gammaln(k+1), axis=1, keepdims=True)
+
+
 def nandot(a, b):  # TODO: speed up, avoid copying data
     "A numpy.dot() replacement which treats (0*-Inf)==0 and works around BLAS NaN bugs in matrices."
     # important note: a contains zeros and b contains inf/-inf/nan, not the other way around
@@ -174,7 +178,7 @@ def weighted_std_matrix(data, weights, dtype=types.large_float_type, shrink_matr
             print(d.shape, w.shape, m.shape, file=stderr)
     else:
         d = d.copy()
-        select = np.ones(data.shape[1], dtype=np.bool)
+        select = np.ones(data.shape[1], dtype=np.bool_)
 
     assert d.shape == m.shape
 
@@ -236,7 +240,7 @@ def weighted_std_iterative(data, weights, dtype=types.large_float_type):
     axis = swapindex_2d[axis]  # TODO: remove
     max_valid_value = np.floor(np.sqrt(np.finfo(data.dtype).max))
     data_weighted_var = np.empty(data.shape[axis], dtype=types.large_float_type)
-    # data_weighted_var_mask = np.empty(data.shape[axis], dtype=np.bool)
+    # data_weighted_var_mask = np.empty(data.shape[axis], dtype=np.bool_)
 
     for i, d, w in zip(count(0), np.rollaxis(data, axis), np.rollaxis(weights, axis)):
         # ignore nan or infinity values
@@ -400,23 +404,36 @@ load_model_file = lambda filename: load_model(open(filename, "rb"))
 write_model = pickle.dump
 write_model_file = lambda model, filename: write_model(model, open(filename, "wb"))
 
-load_probmatrix_iter = lambda lines: (-np.array(line.split("\t"), dtype=types.logprob_type) for line in lines)
-load_probmatrix = lambda lines: np.vstack(load_probmatrix_iter(lines))
+def load_matrix_iter(dtype):
+    return lambda lines: (np.array(line.split("\t"), dtype=dtype) for line in lines)
+
+def load_matrix(lines, dtype):
+    return np.vstack(load_matrix_iter(dtype)(lines))
+    
+def load_matrix_file(filename, dtype):
+    return load_matrix(open(filename, "r"), dtype)
+
+def write_matrix_iter(rows, file=stdout, precision=2, dtype=None, trans=None):
+    format = "%%.%if" % precision  # TODO: use new format capabilities
+    if not trans:
+        trans = lambda x: x  # identity
+    for row in map(lambda x: np.asarray(x, dtype), rows):
+        file.write("\t".join([format % i for i in trans(row)]))
+        file.write("\n")
+
+def write_matrix(mat, dtype=None, **kw):
+    mat = np.asarray(mat, dtype=dtype)
+    write_matrix_iter(mat, dtype=None, **kw)
+
+write_matrix_file = lambda mat, filename, **kw: write_matrix(mat, open(filename, "w"), **kw)
+
+load_probmatrix_iter = load_matrix_iter(dtype=types.logprob_type)
+load_probmatrix = lambda lines: -np.vstack(load_probmatrix_iter(lines))
 load_probmatrix_file = lambda filename: load_probmatrix(open(filename, "r"))
 
-def write_probmatrix_iter(rows, file=stdout):
-    trans = lambda row: np.abs(np.asarray(row, dtype=types.logprob_type))  # assuming log-negative values
-    for row in map(np.asarray, rows):
-        file.write("\t".join(["%.2f" % i for i in trans(row)]))
-        file.write("\n")
-
-def write_probmatrix(mat, file=stdout):
-    mat = np.abs(np.asarray(mat, dtype=types.logprob_type))  # assuming log-negative values
-    for row in mat:
-        file.write("\t".join(["%.2f" % i for i in row]))
-        file.write("\n")
-
-write_probmatrix_file = lambda mat, filename: write_probmatrix(mat, open(filename, "w"))
+write_probmatrix_iter = lambda rows, file=stdout, precision=2: write_matrix_iter(rows, file=file, precision=precision, dtype=types.logprob_type, trans=np.abs)
+write_probmatrix = lambda mat, file=stdout, precision=2: write_matrix(mat, precision=precision, dtype=types.logprob_type, trans=np.abs)
+write_probmatrix_file = lambda mat, filename, precision=2: write_probmatrix(mat, open(filename, "w"))
 
 colors_dict = {
     'automatic'              : '#add8e6',     # 173, 216, 230

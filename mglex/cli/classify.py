@@ -17,7 +17,7 @@ Usage:
   -n, --normalize                   Output class posterior instead of the raw likelihood
   -m <file>, --model <file>         Pre-calculated classificaton model file
   -a <file>, --abcoverage <file>    Absolute mean coverage data file for Poisson Model
-  -d <file>, --diffcoverage <file>  Differential mean coverage data file for Binomial Model
+  -d <file>, --diffcoverage <file>  Differential mean coverage data file for Multinomial Model
   -c <file>, --composition <file>   Compositional data (numeric) file for Naive Bayes Model
   -t <file>, --labels <file>        Label-type data file (e.g. a taxonomic path) for Hierarchical Naive Bayes Model
   -b <float>, --beta <float>        Beta correction factor (e.g. determined via MSE evaluation); default 1.0
@@ -54,7 +54,7 @@ def main(argv):
 
     for arg, submodule, data_opts in (
                 ("--abcoverage", models.poisson, {}),
-                ("--diffcoverage", models.binomial, {}),
+                ("--diffcoverage", models.multinomial, {}),
                 ("--composition", models.naive_bayes, {}),
                 ("--labels", models.hierarchic_naive_bayes, {})):
 
@@ -72,7 +72,7 @@ def main(argv):
             # print(data_obj.context, file=sys.stderr)
 
     if argument["--beta"]:
-        model.beta_correction = argument["--beta"]
+        model.beta_correction = float(argument["--beta"])
 
     mat = model.log_likelihood(data)
 

@@ -1,7 +1,8 @@
 # This file is subject to the terms and conditions of the GPLv3 (see file 'LICENSE' as part of this source code package)
 
 u"""
-This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
+ This file holds all the functions and types necessary for probabilistic modelling of (read) coverage.
+ We use a Poisson PMF to model the absolute coverage per position which also handles low count values.
 """
 
 __author__ = "code@fungs.de"
