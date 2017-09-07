@@ -34,6 +34,9 @@ MGLEX is a Python 3 package, it **does not run with Python 2 versions**. It depe
 Installation
 ------------
 
+Install dependencies with Debian/Ubuntu & Python-Virtualenv
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 We show how to install MLGEX under Debian and Ubuntu, but other platforms are similar.
 
 You can simply install the requirements as system packages.
@@ -46,8 +49,21 @@ We recommend to create a `Python virtual installation enviroment <https://docs.p
 
 .. code-block:: sh
 
-   python3 -m venv --system-site-packages my-mglex-environment
-   source my-mglex-environment/bin/activate
+   python3 -m venv --system-site-packages mglex-env
+   source mglex-env/bin/activate
+
+Install dependencies with Conda
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Similarly, you can use Anaconda or Conda to prepare an environment with the dependencies and activate it.
+
+.. code-block:: sh
+
+   conda create -n mglex-env -c conda-forge numpy scipy docopt python=3
+   source activate mglex-env
+
+Install MGLEX Python package 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 MGLEX is deposited on the `Python Package Index <https://pypi.python.org/pypi>`_ and we recommend to install it via `pip <https://docs.python.org/3/installing/>`_.
 
@@ -61,3 +77,9 @@ Credits
 This package was created using NumPy by Johannes Dröge at the Computational
 Biology of Infection Research Group at the Helmholtz Centre for Infection
 Research, Braunschweig, Germany.
+
+Please cite:
+
+Dröge J, Schönhuth A, McHardy AC. (2017)
+A probabilistic model to recover individual genomes from metagenomes.
+PeerJ Computer Science 3:e117 https://doi.org/10.7717/peerj-cs.117
