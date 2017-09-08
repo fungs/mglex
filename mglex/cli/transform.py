@@ -85,7 +85,7 @@ def main(argv):
     elif argument["--class-index"]:
         minval = np.log(float(argument["--class-index"]))
         for row in data >= minval:
-            sys.stdout.write(" ".join(["%i" % i for i in np.where(row)[0]]))
+            sys.stdout.write(" ".join(["%i" % (i+1) for i in np.where(row)[0]]))
             sys.stdout.write("\n")
         sys.exit(0)  # do not output original matrix
     
