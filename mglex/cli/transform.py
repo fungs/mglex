@@ -84,8 +84,10 @@ def main(argv):
 
     elif argument["--class-index"]:
         minval = np.log(float(argument["--class-index"]))
-        for row in data >= minval:
-            sys.stdout.write(" ".join(["%i" % (i+1) for i in np.where(row)[0]]))
+        for drow, brow in zip(data, data >= minval):
+            good_index = np.where(brow)[0]  # select large enough entries
+            sorted_index = np.argsort(-drow[brow], kind="mergesort")  # sort them
+            sys.stdout.write(" ".join(["%i" % (good_index[i]+1) for i in sorted_index]))
             sys.stdout.write("\n")
         sys.exit(0)  # do not output original matrix
     
