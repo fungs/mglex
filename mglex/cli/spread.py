@@ -63,7 +63,12 @@ def main(argv):
 
     normalize = argument["--normalize"]
     if normalize:
-        np.divide(responsibility, np.sum(responsibility, axis=0, keepdims=True), out=responsibility)  # re-normalize
+        colsum = np.sum(responsibility, axis=0, keepdims=True)
+        # The following prevents nans when no data is availabe for a class. However, this is considered not a bug
+        # but a feature at the moment: for some data, no observation is different from zero!
+        # mask = np.array(colsum, dtype=np.bool_).flatten()
+        # np.divide(responsibility[:, mask], colsum[:, mask], out=responsibility[:, mask])  # re-normalize
+        np.divide(responsibility, colsum, out=responsibility)  # re-normalize
     
     # features: NxF, probs: NxC -> output: CxF
     spread = np.dot(responsibility.T, data)
