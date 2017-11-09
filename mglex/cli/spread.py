@@ -52,23 +52,25 @@ def main(argv):
     responsibility = common.load_probmatrix_file(argument["--responsibility"])
     np.exp(responsibility, dtype=types.prob_type, out=responsibility)  # TODO: work in log-space?
 
-    if argument["--normalize"]:
-        weight = argument["--weight"]
-        if weight:
-            seqlen = common.load_seqlens_file(argument["--weight"])
-            # TODO: create joint responsibility by multiplication
-            weight = np.asarray(seqlen / seqlen.max(), dtype=types.prob_type)
-            np.multiply(responsibility, weight, out=responsibility)
-            normalization = np.sum(weight)
-        else:
-            normalization = responsibility.shape[0]
-    else:
-        normalization = None
+    scalefactor = 1.
+
+    weight = argument["--weight"]
+    if weight:
+        seqlen = common.load_seqlens_file(argument["--weight"])
+        scalefactor = np.max(seqlen)
+        weight = np.asarray(seqlen/scalefactor, dtype=types.prob_type)  # avoid large numbers in prob_type
+        np.multiply(responsibility, weight, out=responsibility)
+
+    normalize = argument["--normalize"]
+    if normalize:
+        np.divide(responsibility, np.sum(responsibility, axis=0, keepdims=True), out=responsibility)  # re-normalize
     
     # features: NxF, probs: NxC -> output: CxF
     spread = np.dot(responsibility.T, data)
-    if normalization is not None:
-        np.divide(spread, normalization, out=spread)
+    
+    if not normalize and scalefactor != 1.:
+        np.multiply(spread, scalefactor, out=spread)
+        
     common.write_matrix(spread)
 
 if __name__ == "__main__":
