@@ -129,7 +129,7 @@ class Model(object):  # TODO: move names to supermodel
         else:
             loglike = np.dot(data.frequencies[:, self._fmask], self._loglikes.T) #/ data.sizes  # DEBUG: last division term for normalization
 
-        assert np.all(np.logical_or(np.isnan, loglike <= 0.0))
+        assert np.all(np.logical_or(np.isnan(loglike), loglike <= 0.0))
         return loglike
 
     def maximize_likelihood(self, data, responsibilities, weights, cmask=None):
@@ -154,7 +154,7 @@ class Model(object):  # TODO: move names to supermodel
         std_per_class_mask = np.isnan(std_per_class)
         skipped_classes = std_per_class_mask.sum()
         self.stdev = np.ma.dot(np.ma.MaskedArray(std_per_class, mask=std_per_class_mask), weight_per_class)
-        stderr.write("LOG %s: mean class likelihood standard deviation is %.2f (omitted %i/%i classes due to invalid or unsufficient data)\n" % (self._short_name, self.stdev, skipped_classes, self.num_components - skipped_classes))
+        stderr.write("LOG %s: mean class likelihood standard deviation is %.2f (omitted %i/%i classes due to invalid or unsufficient data)\n" % (self._short_name, self.stdev, skipped_classes, self.num_components))
         return dimchange, ll
 
     @property
