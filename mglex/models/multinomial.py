@@ -13,7 +13,7 @@ from sys import argv, exit, stdin, stdout, stderr, exit
 
 # count data type
 frequency_type = np.int32
-
+precision_tolerance = .00001  # correct rounding error quick fix
 
 class Context(object):
     """Container for information which is shared between Data and Model"""
@@ -101,13 +101,14 @@ class Model(object):
         assert np.all(~np.isnan(term1))
         
         loglike = np.asarray(term1 + data.conterm, dtype=types.logprob_type)
-
-        loglike_is_negative = np.all(loglike <= .0)
-        if not loglike_is_negative:
-            mask = np.where(loglike > .0)
-            for row, col, val in zip(mask[0], mask[1], loglike[mask]):
-                stderr.write("LOG %s: positive loglikelihood violation row %i, col %i, val %.2f\n" % (self._short_name, row, col, val))
-        assert loglike_is_negative  # non-negative log-likelihood is most likely due to variable precision error
+        
+        # check and work around rounding errors
+        mask = np.where(loglike > .0)
+        for row, col, val in zip(mask[0], mask[1], loglike[mask]):
+            assert val < precision_tolerance
+            loglike[row,col] = 0.0  # setting value to zero TODO: needs permanent fix in formula/data types
+            stderr.write("LOG %s: positive loglikelihood violation row %i, col %i, val %f, possible rounding error is corrected\n" % (self._short_name, row+1, col+1, val))
+                
         return loglike
 
     def get_labels(self, indices=None):
@@ -126,7 +127,7 @@ class Model(object):
         weighted_meancoverage_samples = np.dot(data.covmeans.T, weights_combined)  # TODO: use np.average?
         weighted_meancoverage_total = np.dot(data.covmeanstotal.T, weights_combined)  # TODO: use np.average? simplify?
         #weighted_meancoverage_total[weighted_meancoverage_total==.0] = np.nan  # no data -> undefined params
-        assert np.all(weighted_meancoverage_total > 0.)  # zero coverage bins over given samples not allowed!
+        assert np.all(weighted_meancoverage_total > 0.)  # bins cannot have zero coverage in all samples!
 
         pseudocount = 0.0000000001  # TODO: refine
         self.params = np.asarray((weighted_meancoverage_samples + pseudocount) / (weighted_meancoverage_total + pseudocount),
