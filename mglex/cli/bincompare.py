@@ -90,11 +90,11 @@ def main(argv):
             colnames = list(range(likelihood.shape[1]))
         else:
             colnames = subset_cols
-        for i, j, dist in evaluation.similarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
-            if dist >= threshold:
+        for i, j, dist in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
+            if dist >= threshold:  # TODO: move thresholding into function
                 sys.stdout.write("%i\t%i\t%.2f\n" % (colnames[i]+1, colnames[j]+1, -dist))  # TODO: make precision configurable
     else:
-        distmat = evaluation.similarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)
+        distmat = evaluation.binsimilarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)  # TODO: remove, gets too large anyways
         common.write_probmatrix(distmat)
 
 if __name__ == "__main__":

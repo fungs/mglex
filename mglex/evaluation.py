@@ -418,8 +418,8 @@ def combine_weight(log_weight, log_responsibility, i, j):
     return extra
 
 
-def similarity_matrix(log_mat, log_weight=None, log_responsibility=None):
-    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
+def binsimilarity_matrix(log_mat, log_weight=None, log_responsibility=None):  # TODO: remove, gets too large anyways
+    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2) and output as full matrix"""
 
     n, d = log_mat.shape
     smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
@@ -445,8 +445,8 @@ def similarity_matrix(log_mat, log_weight=None, log_responsibility=None):
     return smat
 
 
-def similarity_iter(log_mat, log_weight=None, log_responsibility=None):
-    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2)"""
+def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, prefilter_threshold=0.01):  # TODO: add minimum/maximum filter in function
+    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2) and output pairwise"""
     
     n, d = log_mat.shape
     
@@ -454,8 +454,18 @@ def similarity_iter(log_mat, log_weight=None, log_responsibility=None):
         assert log_weight.shape[0] == n
         assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
     
+    prefilter_threshold_responsibility = np.log(prefilter_threshold)  # transform into log space
+    if log_responsibility is not None:  # create sets for fast checking if two bins are similar
+        dominant_entries = [frozenset(np.where(col>prefilter_threshold_responsibility)[0]) for col in log_responsibility.T]  # use seqlen-weighted version?
+    
     for i in range(d):
         for j in range(i + 1, d):
+            setsimilarity = len(dominant_entries[i] & dominant_entries[j])/min(len(dominant_entries[i]), len(dominant_entries[j]))
+            #print(len(dominant_entries[i] & dominant_entries[j]), len(dominant_entries[i]), len(dominant_entries[j]), setsimilarity)
+            if setsimilarity < prefilter_threshold:
+                yield i, j, np.NaN
+                continue
+            
             lw = combine_weight(log_weight, log_responsibility, i, j)
             log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
             
