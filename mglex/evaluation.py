@@ -457,10 +457,14 @@ def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indice
         assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
     
     prefilter_threshold_setconstruct = np.log(prefilter_set_threshold)  # transform into log space
-    if log_responsibility is not None:  # create sets for fast checking if two bins are similar
-        dominant = [frozenset(np.where(col>prefilter_threshold_setconstruct)[0]) for col in log_responsibility.T]  # TODO: use seqlen-weighted version
+    if log_responsibility is not None:  # create sets to check fast if two bins are similar
+        dominant = [frozenset(np.where(col>prefilter_threshold_setconstruct)[0]) for col in
+                    log_responsibility.T]  # TODO: use seqlen-weighted version
+    else:  # we need the normalized weights for fast filtering!
+        dominant = [frozenset(np.where(col > prefilter_threshold_setconstruct)[0]) for col in
+                    log_mat.T]  # TODO: use seqlen-weighted version
     
-    memory=set()
+    memory=set()  # remember edges (kbl divergence is symmetric)
     for i, j in itertools.product(d1, d2):
         if i == j:
             continue
@@ -470,7 +474,6 @@ def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indice
         
         memory.add((i,j))
         
-        #if prefilter_threshold > 0.0:  # TODO: avoid inner loop test
         setsim = len(dominant[i] & dominant[j])/len(dominant[i] | dominant[j])
         if setsim < prefilter_threshold:
             continue

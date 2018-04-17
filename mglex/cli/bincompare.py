@@ -12,7 +12,7 @@ Usage:
   -v, --version                       Show version
   -q, --posterior-ratio               Weigh sequences by (subset) bin posterior [default: False]
   -d <file>, --data <file>            Likelihood matrix [standard input]
-  -r <file>, --responsibility <file>  Responsibility (weight) matrix file [None]
+  -r <file>, --responsibility <file>  Responsibility (weight) matrix file; when not given data is used [None]
   -w <file>, --weight <file>          Optional weights (sequence length) file [None]
   -s <file, --subset-1 <file>         Use subset of column indices (1-based) [None]
   -S <file, --subset-2 <file>         Use subset of column indices (1-based) [None]
@@ -90,10 +90,9 @@ def main(argv):
 
     if argument["--edge-list"]:
         threshold = float(argument["--edge-list"])
-        # for i, j, dist in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1,subset2), log_responsibility=log_responsibility, log_p_threshold=threshold):
-        #     sys.stdout.write("%i\t%i\t%.2f\n" % (i+1, j+1, -dist))  # TODO: make precision configurable
         for i, j, dist, ssim in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1,subset2), log_responsibility=log_responsibility, prefilter_threshold=float(argument["--prefilter-threshold"]), log_p_threshold=threshold):
-            sys.stdout.write("%i\t%i\t%.2f\t%.2f\n" % (i+1, j+1, -dist, ssim))  # TODO: make precision configurable
+            sys.stdout.write("%i\t%i\t%.2f\t%.2f\n" % (i+1, j+1, np.abs(dist), ssim))  # TODO: make precision
+            # configurable
     else:
         distmat = evaluation.binsimilarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)  # TODO: remove, gets too large anyways
         common.write_probmatrix(distmat)
