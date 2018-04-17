@@ -290,7 +290,8 @@ def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
         tmp_pair[:n] = tmp_pair[mask]
         tmp_pair.resize((n, 2))  # resize
         factor[:n] = factor[mask]
-        factor.resize(n)  # resize and change dimension
+    
+    factor.resize(n)  # resize/change dimension
     
     # calculate likelihood ratios for all data points
     log_col1 = tmp_pair[:, 0]  # first column view
@@ -331,6 +332,7 @@ def kbl_similarity(log_col1, log_col2, log_weight=None, truncate=0.05):
         mix = np.divide(p1 + p2*r2, r2 + 1.)
 
     #common.print_probvector(mix, file=sys.stderr)
+    #sys.stderr.write("%s, %s\n" % (factor.shape, mix.shape))
     factor *= mix #np.squeeze(factor, axis=1) # TODO: might give zero factors: remove or use log-space
     
     # compress remove all nan values
@@ -418,35 +420,10 @@ def combine_weight(log_weight, log_responsibility, i, j):
     return extra
 
 
-def binsimilarity_matrix(log_mat, log_weight=None, log_responsibility=None):  # TODO: remove, gets too large anyways
-    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2) and output as full matrix"""
-
-    n, d = log_mat.shape
-    smat = np.zeros(shape=(d, d), dtype=types.logprob_type)  # TODO: use numpy triangle matrix object?
-    
-    if log_weight is not None:
-        assert log_weight.shape[0] == n
-        assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
-    
-    for i in range(d):
-        for j in range(i+1, d):
-            # print("\n\ncol %i vs. %i:" % (i,j), file=sys.stderr)
-            lw = combine_weight(log_weight, log_responsibility, i, j)
-            #if lw is not None:
-            #    sys.stderr.write("Nonzero elements in weights: %i\n" % sum(np.isfinite(lw)))
-            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
-
-            if log_p >= .0:
-                smat[i, j] = smat[j, i] = 0.0
-                if log_p > .0:
-                    warnings.warn("Similarity larger than 1.0", UserWarning)
-            else:
-                smat[i, j] = smat[j, i] = log_p
-    return smat
-
-
-def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indices=(None,None), prefilter_set_threshold=0.01, prefilter_threshold=0.5, log_p_threshold=0.0):
-    """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2) and output pairwise"""
+def binsimilarity_iter(log_mat, log_weight=None, indices=(None,None), prefilter_set_threshold=0.01,
+                       prefilter_threshold=0.5, log_p_threshold=0.0, posterior_scale=False):
+    """Calculate n*(n-1)/2 bin similarities by formula (w*((L_a^2+L_b^2)/(L_a+L_b))/Z)*log((2*L_a*L_b)/(
+    L_a^2+L_b^2)), Z is a normalization constant, and output pairwise"""
     
     n, d = log_mat.shape
     d1 = list(range(d)) if indices[0] is None else indices[0]
@@ -455,14 +432,17 @@ def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indice
     if log_weight is not None:
         assert log_weight.shape[0] == n
         assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
-    
+
+    # prefiltering depends on top posterior overlap estimation
     prefilter_threshold_setconstruct = np.log(prefilter_set_threshold)  # transform into log space
-    if log_responsibility is not None:  # create sets to check fast if two bins are similar
-        dominant = [frozenset(np.where(col>prefilter_threshold_setconstruct)[0]) for col in
-                    log_responsibility.T]  # TODO: use seqlen-weighted version
-    else:  # we need the normalized weights for fast filtering!
-        dominant = [frozenset(np.where(col > prefilter_threshold_setconstruct)[0]) for col in
-                    log_mat.T]  # TODO: use seqlen-weighted version
+    if posterior_scale:
+        log_mat_posterior = log_mat
+    else:
+        log_mat_posterior = log_mat - np.max(log_mat, axis=1, keepdims=True)
+    
+    # create sets to check fast if two bins are similar
+    dominant = [frozenset(np.where(col>prefilter_threshold_setconstruct)[0]) for col in
+                log_mat_posterior.T]  # TODO: use seqlen-weighted version
     
     memory=set()  # remember edges (kbl divergence is symmetric)
     for i, j in itertools.product(d1, d2):
@@ -478,10 +458,10 @@ def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indice
         if setsim < prefilter_threshold:
             continue
         
-        lw = combine_weight(log_weight, log_responsibility, i, j)  # TODO: check implementation and internal subsetting
-        log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
+        #lw = combine_weight(log_weight, log_responsibility, i, j)  # TODO: check implementation and internal subsetting
+        log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], log_weight)
         
-        if log_p > log_p_threshold:
+        if log_p < log_p_threshold:
             continue
 
         if log_p > .0:

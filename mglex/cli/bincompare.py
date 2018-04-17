@@ -6,20 +6,19 @@ This is the main program which calculates pairwise bin similarities using mixtur
 
 Usage:
   bincompare  (--help | --version)
-  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-1 <file> --subset-2 <file> --beta <float> --posterior-ratio --prefilter-threshold <float> --edge-list <float>]
+  bincompare  [--weight <file> --data <file> --subset-1 <file> --subset-2 <file> --beta <float> --posterior-ratio]
+              [--prefilter-thresh <float> --edge-thresh <float>]
 
-  -h, --help                          Show this screen
-  -v, --version                       Show version
-  -q, --posterior-ratio               Weigh sequences by (subset) bin posterior [default: False]
-  -d <file>, --data <file>            Likelihood matrix [standard input]
-  -r <file>, --responsibility <file>  Responsibility (weight) matrix file; when not given data is used [None]
-  -w <file>, --weight <file>          Optional weights (sequence length) file [None]
-  -s <file, --subset-1 <file>         Use subset of column indices (1-based) [None]
-  -S <file, --subset-2 <file>         Use subset of column indices (1-based) [None]
-  -b <float>, --beta <float>          Beta correction factor (e.g. determined via MSE evaluation) [default: 1.0]
-  -p <float>, --prefilter-threshold   Contig overlap similarity used to avoid likelihood calculations [default: 0.5]
-  -e <float>, --edge-list <float>     If given, output distances as edge list;
-                                      only distances <= threshold are reported; use "inf" to show all [inf]
+  -h, --help                           Show this screen
+  -v, --version                        Show version
+  -q, --posterior-ratio                Weigh sequences by (subset) bin posterior [default: False]
+  -d <file>, --data <file>             Likelihood matrix [standard input]
+  -w <file>, --weight <file>           Optional weights (sequence length) file [None]
+  -s <file, --subset-1 <file>          Use subset of column indices (1-based) [None]
+  -S <file, --subset-2 <file>          Use subset of column indices (1-based) [None]
+  -b <float>, --beta <float>           Beta correction factor (e.g. determined via MSE evaluation) [default: 1.0]
+  -p <float>, --prefilter-thresh       Contig overlap similarity used to avoid likelihood calculations [default: 0.5]
+  -e <float>, --edge-thresh <float>    Only distances <= threshold are reported; use "inf" to show all [default: 30]
 """
 
 import sys
@@ -58,11 +57,6 @@ def main(argv):
             with np.errstate(over='ignore'):
                 likelihood *= beta
 
-    # load responsibility matrix
-    log_responsibility = argument["--responsibility"]
-    if log_responsibility is not None:
-        log_responsibility = common.load_probmatrix_file(log_responsibility)
-    
     # load weights
     log_weight = argument["--weight"]
     if log_weight is not None:
@@ -84,18 +78,18 @@ def main(argv):
     if argument["--posterior-ratio"]:
         with np.errstate(invalid='ignore'):
             likelihood -= np.max(likelihood, axis=1, keepdims=True)
+        posterior_scale = True
+    else:
+        posterior_scale = False
 
     if not np.all(np.isfinite(np.sum(likelihood, axis=1))):
         warnings.warn("Warning: some sequences have all zero likelihood and are ignored in distance calculations", UserWarning)
 
-    if argument["--edge-list"]:
-        threshold = float(argument["--edge-list"])
-        for i, j, dist, ssim in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1,subset2), log_responsibility=log_responsibility, prefilter_threshold=float(argument["--prefilter-threshold"]), log_p_threshold=threshold):
-            sys.stdout.write("%i\t%i\t%.2f\t%.2f\n" % (i+1, j+1, np.abs(dist), ssim))  # TODO: make precision
-            # configurable
-    else:
-        distmat = evaluation.binsimilarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)  # TODO: remove, gets too large anyways
-        common.write_probmatrix(distmat)
+    for i, j, dist, ssim in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1, subset2),
+                                                          prefilter_threshold=float(argument["--prefilter-thresh"]),
+                                                          log_p_threshold=-float(argument["--edge-thresh"]),
+                                                          posterior_scale=posterior_scale):
+        sys.stdout.write("%i\t%i\t%.2f\t%.2f\n" % (i+1, j+1, np.abs(dist), ssim))  # TODO: make precision configurable
 
 if __name__ == "__main__":
     main(sys.argv[1:])
