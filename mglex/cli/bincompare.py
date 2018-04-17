@@ -6,7 +6,7 @@ This is the main program which calculates pairwise bin similarities using mixtur
 
 Usage:
   bincompare  (--help | --version)
-  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-column <file> --beta <float> --posterior-ratio --edge-list <float>]
+  bincompare  [--weight <file> --data <file> --responsibility <file> --subset-1 <file> --subset-2 <file> --beta <float> --posterior-ratio --prefilter-threshold <float> --edge-list <float>]
 
   -h, --help                          Show this screen
   -v, --version                       Show version
@@ -14,10 +14,12 @@ Usage:
   -d <file>, --data <file>            Likelihood matrix [standard input]
   -r <file>, --responsibility <file>  Responsibility (weight) matrix file [None]
   -w <file>, --weight <file>          Optional weights (sequence length) file [None]
-  -s <file, --subset-column <file>    Use subset of column indices (1-based) [None]
+  -s <file, --subset-1 <file>         Use subset of column indices (1-based) [None]
+  -S <file, --subset-2 <file>         Use subset of column indices (1-based) [None]
   -b <float>, --beta <float>          Beta correction factor (e.g. determined via MSE evaluation) [default: 1.0]
+  -p <float>, --prefilter-threshold   Contig overlap similarity used to avoid likelihood calculations [default: 0.5]
   -e <float>, --edge-list <float>     If given, output distances as edge list;
-                                      only distances <= threshold are reported; use "inf" to show all
+                                      only distances <= threshold are reported; use "inf" to show all [inf]
 """
 
 import sys
@@ -66,16 +68,18 @@ def main(argv):
     if log_weight is not None:
         log_weight = np.log(common.load_seqlens_file(log_weight))
     
-    # load subset columns
-    subset_cols = argument["--subset-column"]
-    if subset_cols is not None:
-        with open(subset_cols, "r") as f:
-            subset_cols = sorted(set(int(line.rstrip("\n"))-1 for line in f))  # convert to zero-based indexing
-            assert subset_cols[0] >= 0
-        likelihood = likelihood[:, subset_cols]
-        if log_responsibility is not None:
-            log_responsibility = log_responsibility[:, subset_cols]
-
+    # load subset columns TODO: refactor
+    subset1 = argument["--subset-1"]
+    if subset1 is not None:
+        with open(subset1, "r") as f:
+            subset1 = sorted(set(int(line.rstrip("\n"))-1 for line in f))  # convert to zero-based indexing
+            assert subset1[0] >= 0
+    subset2 = argument["--subset-2"]
+    if subset2 is not None:
+        with open(subset2, "r") as f:
+            subset2 = sorted(set(int(line.rstrip("\n"))-1 for line in f))  # convert to zero-based indexing
+            assert subset2[0] >= 0
+    
     # scale likelihood proportional to best classification (log(best) = 0)
     if argument["--posterior-ratio"]:
         with np.errstate(invalid='ignore'):
@@ -85,14 +89,11 @@ def main(argv):
         warnings.warn("Warning: some sequences have all zero likelihood and are ignored in distance calculations", UserWarning)
 
     if argument["--edge-list"]:
-        threshold = -float(argument["--edge-list"])
-        if subset_cols is None:
-            colnames = list(range(likelihood.shape[1]))
-        else:
-            colnames = subset_cols
-        for i, j, dist in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, log_responsibility=log_responsibility):
-            if dist >= threshold:  # TODO: move thresholding into function
-                sys.stdout.write("%i\t%i\t%.2f\n" % (colnames[i]+1, colnames[j]+1, -dist))  # TODO: make precision configurable
+        threshold = float(argument["--edge-list"])
+        # for i, j, dist in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1,subset2), log_responsibility=log_responsibility, log_p_threshold=threshold):
+        #     sys.stdout.write("%i\t%i\t%.2f\n" % (i+1, j+1, -dist))  # TODO: make precision configurable
+        for i, j, dist, ssim in evaluation.binsimilarity_iter(likelihood, log_weight=log_weight, indices=(subset1,subset2), log_responsibility=log_responsibility, prefilter_threshold=float(argument["--prefilter-threshold"]), log_p_threshold=threshold):
+            sys.stdout.write("%i\t%i\t%.2f\t%.2f\n" % (i+1, j+1, -dist, ssim))  # TODO: make precision configurable
     else:
         distmat = evaluation.binsimilarity_matrix(likelihood, log_weight=log_weight, log_responsibility=log_responsibility)  # TODO: remove, gets too large anyways
         common.write_probmatrix(distmat)

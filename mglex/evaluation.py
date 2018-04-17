@@ -445,36 +445,47 @@ def binsimilarity_matrix(log_mat, log_weight=None, log_responsibility=None):  # 
     return smat
 
 
-def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, prefilter_threshold=0.01):  # TODO: add minimum/maximum filter in function
+def binsimilarity_iter(log_mat, log_weight=None, log_responsibility=None, indices=(None,None), prefilter_set_threshold=0.01, prefilter_threshold=0.5, log_p_threshold=0.0):
     """Calculate n*(n-1)/2 bin similarities by formula (2*L_b*L_b)/(L_a^2+L_b^2) and output pairwise"""
     
     n, d = log_mat.shape
+    d1 = list(range(d)) if indices[0] is None else indices[0]
+    d2 = list(range(d)) if indices[1] is None else indices[1]
     
     if log_weight is not None:
         assert log_weight.shape[0] == n
         assert np.any(np.isfinite(log_weight))  # TODO: allow also zero weights
     
-    prefilter_threshold_responsibility = np.log(prefilter_threshold)  # transform into log space
+    prefilter_threshold_setconstruct = np.log(prefilter_set_threshold)  # transform into log space
     if log_responsibility is not None:  # create sets for fast checking if two bins are similar
-        dominant_entries = [frozenset(np.where(col>prefilter_threshold_responsibility)[0]) for col in log_responsibility.T]  # use seqlen-weighted version?
+        dominant = [frozenset(np.where(col>prefilter_threshold_setconstruct)[0]) for col in log_responsibility.T]  # TODO: use seqlen-weighted version
     
-    for i in range(d):
-        for j in range(i + 1, d):
-            setsimilarity = len(dominant_entries[i] & dominant_entries[j])/min(len(dominant_entries[i]), len(dominant_entries[j]))
-            #print(len(dominant_entries[i] & dominant_entries[j]), len(dominant_entries[i]), len(dominant_entries[j]), setsimilarity)
-            if setsimilarity < prefilter_threshold:
-                yield i, j, np.NaN
-                continue
-            
-            lw = combine_weight(log_weight, log_responsibility, i, j)
-            log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
-            
-            if log_p >= .0:
-                yield i, j, .0
-                if log_p > .0:
-                    warnings.warn("Similarity larger than 1.0", UserWarning)
-            else:
-                yield i, j, log_p
+    memory=set()
+    for i, j in itertools.product(d1, d2):
+        if i == j:
+            continue
+        (i,j) = (j,i) if i>j else (i,j)
+        if (i,j) in memory:
+            continue
+        
+        memory.add((i,j))
+        
+        #if prefilter_threshold > 0.0:  # TODO: avoid inner loop test
+        setsim = len(dominant[i] & dominant[j])/len(dominant[i] | dominant[j])
+        if setsim < prefilter_threshold:
+            continue
+        
+        lw = combine_weight(log_weight, log_responsibility, i, j)  # TODO: check implementation and internal subsetting
+        log_p = kbl_similarity(log_mat[:, i], log_mat[:, j], lw)
+        
+        if log_p > log_p_threshold:
+            continue
+
+        if log_p > .0:
+            warnings.warn("Similarity larger than 1.0", UserWarning)
+            yield i, j, .0, setsim
+        else:
+            yield i, j, log_p, setsim
 
 
 if __name__ == "__main__":
