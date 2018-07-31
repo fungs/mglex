@@ -454,7 +454,11 @@ def binsimilarity_iter(log_mat, log_weight=None, indices=(None,None), prefilter_
         
         memory.add((i,j))
         
-        setsim = len(dominant[i] & dominant[j])/len(dominant[i] | dominant[j])
+        dominant_size = len(dominant[i] | dominant[j])
+        if dominant_size:
+            setsim = len(dominant[i] & dominant[j])/dominant_size
+        else:
+            setsim = .0  # no overlap == zero similarity
         if setsim < prefilter_threshold:
             continue
         
